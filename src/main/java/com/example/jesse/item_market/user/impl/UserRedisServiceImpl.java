@@ -6,7 +6,6 @@ import com.example.jesse.item_market.utils.LimitRandomElement;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
 import com.example.jesse.item_market.errorhandle.ProjectRedisOperatorException;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,8 +19,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.example.jesse.item_market.config.KeyConcat.*;
-import static com.example.jesse.item_market.config.KeyConcat.getUserKey;
+import static com.example.jesse.item_market.utils.KeyConcat.*;
+import static com.example.jesse.item_market.utils.KeyConcat.getUserKey;
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsSting;
 import static java.lang.String.format;
@@ -48,14 +47,6 @@ public class UserRedisServiceImpl implements UserRedisService
     private
     ReactiveRedisTemplate<String, LuaOperatorResult> redisScriptTemplate;
 
-    private
-    ReactiveListOperations<String, Object> listOperations;
-
-    @PostConstruct
-    private void getRedisOptions() {
-        this.listOperations = this.redisTemplate.opsForList();
-    }
-
     /** 获取所有用户的 UUID。*/
     @Override
     public Flux<String> getAllUserUUID()
@@ -77,7 +68,7 @@ public class UserRedisServiceImpl implements UserRedisService
     public Flux<Weapons>
     getAllWeaponsFromInventoryByUUID(String uuid)
     {
-        return this.listOperations
+        return this.redisTemplate.opsForList()
             .range(getInventoryKey(uuid), 0L, -1L)
             .timeout(Duration.ofSeconds(5L))
             .switchIfEmpty(
@@ -106,9 +97,28 @@ public class UserRedisServiceImpl implements UserRedisService
                     .build())
             .flatMap((key) ->
                 this.redisTemplate.opsForHash()
-                    .multiGet(key, List.of("weapon-name", "seller"))
+                    .multiGet(key, List.of("\"weapon-name\"", "\"seller\""))
                     .filter((result) -> result.get(1).equals(uuid))
                     .map((res) -> Weapons.valueOf((String) res.getFirst()))
+            );
+    }
+
+    @Override
+    public Flux<String>
+    getAllWeaponIdsFromMarketByUUID(String uuid)
+    {
+        return
+        this.redisTemplate
+            .scan(
+                ScanOptions.scanOptions()
+                    .match("market:weapon-market:weapons:*")
+                    .build())
+            .flatMap((key) ->
+                this.redisTemplate.opsForHash()
+                    .get(key, "\"seller\"")
+                    .filter(sellerId -> sellerId.equals(uuid))
+                    .map(ignore ->
+                        key.substring(key.lastIndexOf(":") + 1))
             );
     }
 
@@ -129,7 +139,7 @@ public class UserRedisServiceImpl implements UserRedisService
      *
      * @param userName 新用户名
      *
-     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     * @return 发布新用户 UUID 的 Mono
      */
     @Override
     public @NotNull Mono<String>
@@ -158,7 +168,7 @@ public class UserRedisServiceImpl implements UserRedisService
                                 USER_NAME_FIELD,
                                 USER_FUNDS_FIELD,
                                 userName,
-                                String.valueOf(NEW_USER_FUNDS),
+                                NEW_USER_FUNDS,
                                 weaponsString)
                             .timeout(Duration.ofSeconds(5L))
                             .next()
@@ -206,7 +216,7 @@ public class UserRedisServiceImpl implements UserRedisService
             .fromFile("addWeaponToInventory.lua")
             .flatMap((script) ->
                 this.redisScriptTemplate.execute(
-                        script, List.of(getInventoryKey(uuid)), weapon.getItemName())
+                        script, List.of(getUserKey(uuid), getInventoryKey(uuid)), weapon.getItemName())
                     .next()
                     .timeout(Duration.ofSeconds(5L))
                     .onErrorResume((exception) ->
@@ -228,6 +238,7 @@ public class UserRedisServiceImpl implements UserRedisService
     destroyWeaponFromInventory(String uuid, @NotNull Weapons weapon)
     {
         final String inventoryKey = getInventoryKey(uuid);
+        final String userKey      = getUserKey(uuid);
 
         return
         this.luaScriptReader
@@ -236,7 +247,7 @@ public class UserRedisServiceImpl implements UserRedisService
                 this.redisScriptTemplate
                     .execute(
                         script,
-                        List.of(inventoryKey),
+                        List.of(inventoryKey, userKey),
                         uuid, weapon.getItemName())
                     .next()
                     .timeout(Duration.ofSeconds(5L))
@@ -271,16 +282,17 @@ public class UserRedisServiceImpl implements UserRedisService
      * @param weapon 武器类型
      * @param price  销售价格
      *
-     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     * @return 发布上架至市场的武器 UID 的 Mono
      */
     @Override
-    public Mono<Void>
+    public Mono<String>
     addWeaponToMarket(String uuid, @NotNull Weapons weapon, double price)
     {
         return Mono.defer(() -> {
-            final String weaponKey       = getWeaponHashKey();
-            final String weapponPriceKey = getWeaponPriceZsetKey();
-            final String inventoryKey    = getInventoryKey(uuid);
+            final String weaponKey      = getNewWeaponHashKey();
+            final String weaponPriceKey = getWeaponPriceZsetKey();
+            final String inventoryKey   = getInventoryKey(uuid);
+            final String userKey        = getUserKey(uuid);
 
             final String weaponUUID
                 = weaponKey.substring(weaponKey.lastIndexOf(":") + 1);
@@ -291,7 +303,7 @@ public class UserRedisServiceImpl implements UserRedisService
                     this.redisScriptTemplate
                         .execute(
                             script,
-                            List.of(weaponKey, weapponPriceKey, inventoryKey),
+                            List.of(weaponKey, weaponPriceKey, inventoryKey, userKey),
                             weaponUUID, uuid, weapon.getItemName(), price)
                         .timeout(Duration.ofSeconds(5L))
                         .next()
@@ -307,7 +319,7 @@ public class UserRedisServiceImpl implements UserRedisService
                                         )
                                     );
 
-                                case "SUCCESS" -> Mono.empty();
+                                case "SUCCESS" -> Mono.just(weaponUUID);
 
                                 case null, default ->
                                     Mono.error(
@@ -318,7 +330,6 @@ public class UserRedisServiceImpl implements UserRedisService
                             })
                         .onErrorResume((exception) ->
                             redisGenericErrorHandel(exception, null))
-                        .then()
                 );
         });
     }
@@ -340,8 +351,9 @@ public class UserRedisServiceImpl implements UserRedisService
     public Mono<Void>
     removeWeaponFromMarket(String uuid, @NotNull Weapons weapon)
     {
-        final String weapponPriceKey = getWeaponPriceZsetKey();
-        final String inventoryKey    = getInventoryKey(uuid);
+        final String userKey        = getUserKey(uuid);
+        final String weaponPriceKey = getWeaponPriceZsetKey();
+        final String inventoryKey   = getInventoryKey(uuid);
 
         return
         this.luaScriptReader
@@ -350,7 +362,7 @@ public class UserRedisServiceImpl implements UserRedisService
                 this.redisScriptTemplate
                     .execute(
                         script,
-                        List.of(weapponPriceKey, inventoryKey),
+                        List.of(userKey, weaponPriceKey, inventoryKey),
                         uuid, weapon.getItemName())
                     .next()
                     .timeout(Duration.ofSeconds(5L))
@@ -410,7 +422,7 @@ public class UserRedisServiceImpl implements UserRedisService
                                case "USER_NOT_FOUND" ->
                                    Mono.error(
                                        new IllegalArgumentException(
-                                           format("UUID: %s not exitst!", uuid)
+                                           format("UUID: %s not exits!", uuid)
                                        )
                                );
 
