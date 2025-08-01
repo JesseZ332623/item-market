@@ -1,104 +1,137 @@
 --[[
-    市场武器交易脚本（Redis 数据结构变更，暂未实现）。
+    市场武器交易脚本。
+
+    KEYS:
+        sellerUserKey       卖家用户键（如：users:114940680399943670）
+        buyerUserKey        买家用户键（如：users:114950910119824488）
+        buyerInventoryKey   买家包裹键（如：inventories:114950910119824488）
+        weaponHashKey       市场武器信息哈希键（如：market:weapon-market:weapons:1985f067af74d6d）
+        weaponZsetKey       市场武器价格有序集合键（market:weapon-market:weapon-price）
+
+    ARGV:
+        buyerUUID  买家 UUID
+        sellerUUID 卖家 UUID
+        weaponId   武器 UID
 ]]
-local buyerKey     = KEYS[1]
-local sellerKey    = KEYS[2]
-local marketKey    = KEYS[3]
-local inventoryKey = KEYS[4]
-local itemMember   = ARGV[1]
-local weaponName   = ARGV[2]
+
+local sellerUserKey      = KEYS[1]
+local buyerUserKey       = KEYS[2]
+local buyerInventoryKey  = KEYS[3]
+local weaponHashKey      = KEYS[4]
+local weaponZsetKey      = KEYS[5]
+
+local buyerUUID  = ARGV[1]
+local sellerUUID = ARGV[2]
+local weaponId   = ARGV[3]
 
 local timestamp = redis.call('TIME')[1]
 
-local buyerUUID  = string.match(buyerKey, ":([^:]+)")
-local sellerUUID = string.match(sellerKey, ":([^:]+)")
-
-redis.log(redis.LOG_NOTICE, "Starting transaction between " .. buyerKey .. " and " .. sellerKey)
+-- redis.log(
+--     redis.LOG_NOTICE,
+--     "sellerUserKey = " ..sellerUserKey..
+--     " buyerUserKey = " ..buyerUserKey..
+--     " buyerInventoryKey = " ..buyerInventoryKey..
+--     " weaponHashKey = " ..weaponHashKey..
+--     " weaponZsetKey = " ..weaponZsetKey..
+--     " buyerUUID = " ..buyerUUID..
+--     " sellerUUID = " ..sellerUUID..
+--     " weaponId = " ..weaponId
+-- )
 
 -- 禁止左手倒右手
-if buyerKey == sellerKey
+if
+    buyerUUID == sellerUUID
 then
-    return '{"result": "SELF_TRANSACTION"}'
+    return '{"result": "SELF_TRANSACTIONAL"}'
 end
 
--- 获取武器价格和买家资金
-local weaponPrice = redis.call('ZSCORE', marketKey, itemMember)
+-- 在市场上查询武器价格
+local weaponPrice
+    = redis.call('ZSCORE', weaponZsetKey, weaponId)
+
 if not weaponPrice
 then
-    return '{"result": "ITEM_NOT_FOUND"}'
+    return '{"result": "WEAPON_NOT_FOUND"}'
 end
 
-local buyerFunds = redis.call('HGET', buyerKey, 'funds')
+-- 查询买家的资金，并判断其是否存在以及能否购买本武器
+local buyerFunds
+    = redis.call('HGET', buyerUserKey, "\"funds\"")
+
 if not buyerFunds
 then
     return '{"result": "BUYER_FUNDS_NOT_FOUND"}'
 end
 
-weaponPrice = tonumber(string.format("%.2f", weaponPrice)
-buyerFunds  = tonumber(string.format("%.2f", buyerFunds))
+buyerFunds = string.gsub(buyerFunds, '"', '')
 
-redis.log(redis.LOG_NOTICE, "Weapon price = " .. weaponPrice .. " Buyer funds = " .. buyerFunds)
+-- 格式化武器价格和买家资金为两位小数
 
--- 验证资金和物品存在
-if buyerFunds < weaponPrice
+local formatWeaponPrice = tonumber(string.format("%.2f", weaponPrice))
+local formatBuyerFunds  = tonumber(buyerFunds)
+
+if formatBuyerFunds < formatWeaponPrice
 then
-    return '{"result": "INSUFFICIENT_FUNDS"}'
+    return '{"result": "BUYER_FUNDS_NOT_ENOUGH"}'
 end
 
--- 原子化执行所有操作
-redis.call('ZREM', marketKey, itemMember)
+local weaponName
+    = redis.call('HGET', weaponHashKey, "\"weapon-name\"")
+
+local sellerName
+    = redis.call('HGET', sellerUserKey, "\"name\"")
+
+local buyerName
+    = redis.call('HGET', buyerUserKey, "\"name\"")
+
+-- 所有校验完毕，正式执行交易操作（别忘记记录审计信息）
+-- 删除市场上的武器信息
+redis.call('DEL', weaponHashKey)
+redis.call('ZREM', weaponZsetKey, weaponId)
 redis.call(
     'XADD',
-    'market:user-operator:log', '*',
-    'event', 'WEAPON_OUTBOUND',
-    'uuid', sellerUUID,
-    'item-name', weaponName,
-    'weapon-price', price,
+    'market:log', '*',
+    'event', 'WEAPON_SOLD',
+    'weaponId', weaponId,
+    'weaponName', weaponName,
+    'seller', sellerUUID,
+    'buyer', buyerUUID,
     'timestamp', timestamp
 )
 
-redis.call('RPUSH', inventoryKey, weaponName)
-redis.call(
-    'XADD',
-    'inventories:log', '*',
-    'event', 'WEAPON_INBOUND',
-    'uuid', buyerUUID,
-    'weapon', weaponName,
-    'amount', '1'
-    'timestamp', timestamp
-)
-
-redis.call('HINCRBYFLOAT', buyerKey, 'funds', -weaponPrice)
-redis.call(
-    'XADD',
-    'users:log', '*',
-    'event', 'USER_FUNDS_REDUCE',
-    'uuid', buyerUUID,
-    'user-name', '---',
-    'user-funds', "-" ..weaponPrice,
-    'timestamp', timestamp
-)
-
-redis.call('HINCRBYFLOAT', sellerKey, 'funds', weaponPrice)
+-- 卖家资金增加
+redis.call('HINCRBYFLOAT', sellerUserKey, "\"funds\"", formatWeaponPrice)
 redis.call(
     'XADD',
     'users:log', '*',
     'event', 'USER_FUNDS_INCR',
     'uuid', sellerUUID,
-    'user-name', '---',
-    'user-funds', "+" ..weaponPrice,
+    'user-name', sellerName,
+    'user-funds', "+" ..formatWeaponPrice,
     'timestamp', timestamp
 )
 
--- 最后添加审计日志
+-- 买家资金减少
+redis.call('HINCRBYFLOAT', buyerUserKey, "\"funds\"", -formatWeaponPrice)
 redis.call(
     'XADD',
-    'market:trade-operator:log', '*',
-    'event', 'WEAPON_TRADE',
-    'buyer', buyerKey,
-    'seller', sellerKey,
-    'item', weaponName,
-    'weapon-price', weaponPrice,
+    'users:log', '*',
+    'event', 'USER_FUNDS_INCR',
+    'uuid', buyerUUID,
+    'user-name', buyerName,
+    'user-funds', "-" ..formatWeaponPrice,
+    'timestamp', timestamp
+)
+
+-- 将武器移库至买家包裹
+redis.call('RPUSH', buyerInventoryKey, weaponName)
+redis.call(
+    'XADD',
+    'inventories:log', '*',
+    'event', 'WEAPON_INBOUND',
+    'uuid', buyerUUID,
+    'user-name', buyerName,
+    'amount', '1',
     'timestamp', timestamp
 )
 
