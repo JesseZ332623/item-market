@@ -35,9 +35,9 @@ public class ProjectOperatorTest
         = List.of(
             "Jesse", "Mike", "Frank", "Tom", "Peter",
                 "Lisa", "John", "Jackson", "Lois", "Jesus",
-                "Silly", "Lister", "Franlin", "Jerry", "Mask",
+                "Silly", "Lister", "Franklin", "Jerry", "Mask",
                 "Steve", "Jem", "Meg", "Cris", "Evan", "Jean",
-                "Stuwie", "Bill", "Billy", "Kiki"
+                "Stubbies", "Bill", "Billy", "Kiki"
         );
 
     private final static List<Weapons> TEST_WEAPONS
@@ -117,9 +117,9 @@ public class ProjectOperatorTest
                        // log.info("User: {} Weapons List = {}", uuid, weaponsList);
 
                         return Mono.defer(() -> {
-                            // 2 个武器
+                            // 5 个武器
                             List<Weapons> randomWeapons
-                                = getRandomLimit(new ArrayList<>(weaponsList), 2L);
+                                = getRandomLimit(new ArrayList<>(weaponsList), 5L);
 
                             double randomValue
                                 = ThreadLocalRandom
@@ -249,12 +249,14 @@ public class ProjectOperatorTest
 //            }).blockLast();
 //    }
 
+    /** 删除随机挑选的 5 个用户。*/
     @Order(8)
     @Test
     public void TestDeleteUser()
     {
         this.userRedisService.getAllUserUUID()
             .collectList()
+            .map((uuids) -> getRandomLimit(uuids, 5L))
             .flatMapMany(Flux::fromIterable)
                    .flatMap((uuid) ->
                        this.userRedisService.deleteUser(uuid))
