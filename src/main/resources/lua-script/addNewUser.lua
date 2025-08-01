@@ -61,18 +61,12 @@ if not uuid then
     uuid = "unknow"
 end
 
-redis.log(
-    redis.LOG_NOTICE,
-    "Add new user name: " ..newUserName..
-    " uuid: " ..uuid.. " complete!"
-)
-
 -- 用户数据的审计信息
 redis.call(
     'XADD',
     'users:log', '*',
     'event', 'NEW_USER_CREATE',
-    'uuid', uuid,
+    'uuid', "\"" ..uuid.. "\"",
     'user-name', newUserName,
     'user-funds', newUserFunds,
     'timestamp', timestamp
