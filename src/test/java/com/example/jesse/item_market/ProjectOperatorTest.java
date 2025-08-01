@@ -1,7 +1,7 @@
 package com.example.jesse.item_market;
 
 import com.example.jesse.item_market.market.MarketService;
-import com.example.jesse.item_market.user.impl.UserRedisServiceImpl;
+import com.example.jesse.item_market.user.UserRedisService;
 import com.example.jesse.item_market.user.Weapons;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.MethodOrderer;
@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -26,7 +28,7 @@ import static com.example.jesse.item_market.utils.TestUtils.SELECT_AMOUNT;
 public class ProjectOperatorTest
 {
     @Autowired
-    private UserRedisServiceImpl userRedisService;
+    private UserRedisService userRedisService;
 
     @Autowired
     private MarketService marketService;
@@ -124,7 +126,7 @@ public class ProjectOperatorTest
                             double randomValue
                                 = ThreadLocalRandom
                                 .current()
-                                .nextDouble(15.00, 1250.00);
+                                .nextDouble(15.00, 35.00);
 
                             return Flux.fromIterable(randomWeapons)
                                 .flatMap(weapon ->
@@ -139,7 +141,7 @@ public class ProjectOperatorTest
             ).blockLast(); // 阻塞直到所有操作完成
     }
 
-    /** 获取每一个用户在市场山出售的武器列表。*/
+    /** 获取每一个用户在市场出售的武器列表。*/
     @Order(6)
     @Test
     public void TestGetAllWeaponsFromMarketByUUID()
@@ -175,79 +177,56 @@ public class ProjectOperatorTest
             ).blockLast();
     }
 
-//    @Order(7)
-//    @Test
-//    void TestMarketTransaction()
-//    {
-//        // 1. SELECT_AMOUNT 个随机挑选的用户中，前半用户作为买家，后半部分作为卖家
-//        Mono<Tuple2<List<String>, List<String>>> splitUsers
-//            = this.userRedisService.getAllUserUUID()
-//            .collectList()
-//            .map(uuidList ->
-//                getRandomLimit(uuidList, SELECT_AMOUNT))
-//            .map((users) -> {
-//                int half = users.size() / 2;
-//
-//                return Tuples.of(
-//                    users.subList(0, half),
-//                    users.subList(half, users.size())
-//                );
-//            });
-//
-//        // 3. 后半用户作为卖家，为每一个卖家挑一个在他们包裹中的武器并上架至市场
-//        Mono<Map<String, Weapons>> sellerWeaponsMap
-//            = splitUsers.flatMapMany(
-//                (tuple) ->
-//                    Flux.fromIterable(tuple.getT2()))
-//            .concatMap((uuid) ->
-//                this.userRedisService
-//                    .getAllWeaponsByUUID(uuid)
-//                    .map(Weapons::valueOf)
-//                    .collectList()
-//                    .flatMap((weapons) -> {
-//                            ThreadLocalRandom random = ThreadLocalRandom.current();
-//
-//                            Weapons weaponSelect
-//                                = weapons.get(random.nextInt(0, weapons.size()));
-//
-//                            double randomValue
-//                                = random.nextDouble(15.00, 650.00);
-//
-//                            System.out.printf(
-//                                "Inbound weapon: %s, price: %.2f\n",
-//                                weaponSelect, randomValue
-//                            );
-//
-//                            return this.userRedisService
-//                                .addWeaponToMarket(
-//                                    uuid, weaponSelect,
-//                                    Math.round(randomValue * 100) / 100.00)
-//                                .then(Mono.just(Tuples.of(uuid, weaponSelect)));
-//                        }
-//                    )
-//            ).collectMap(Tuple2::getT1, Tuple2::getT2);
-//
-//        // 4. 执行交易
-//        splitUsers.zipWith(sellerWeaponsMap)
-//            .flatMapMany(tuple -> {
-//                Tuple2<List<String>, List<String>> users = tuple.getT1();
-//                Map<String, Weapons> weaponsMap          = tuple.getT2();
-//
-//                List<String> buyers  = users.getT1();
-//                List<String> sellers = users.getT2();
-//
-//                return Flux.fromIterable(buyers)
-//                    .concatMap(buyerId ->
-//                        Flux.fromIterable(sellers)
-//                            .concatMap(sellerId -> {
-//                                Weapons weapon = weaponsMap.get(sellerId);
-//
-//                                return this.marketService
-//                                    .marketTransaction(buyerId, sellerId, weapon);
-//                            })
-//                    );
-//            }).blockLast();
-//    }
+    @Order(7)
+    @Test
+    void TestMarketTransaction()
+    {
+        // 1. SELECT_AMOUNT 个随机挑选的用户中，前半用户作为买家，后半部分作为卖家
+        Mono<Tuple2<List<String>, List<String>>> splitUsers
+            = this.userRedisService.getAllUserUUID()
+            .collectList()
+            .map(uuidList ->
+                getRandomLimit(uuidList, SELECT_AMOUNT))
+            .map((users) -> {
+                int half = users.size() / 2;
+
+                return Tuples.of(
+                    users.subList(0, half),
+                    users.subList(half, users.size())
+                );
+            });
+
+        // 2. 搜索卖家在市场上上架的武器，并随机挑出一个，令买家与之交易
+        splitUsers
+            .flatMapMany(usersTuple -> {
+                List<String> sellers = usersTuple.getT2();
+                List<String> buyers = usersTuple.getT1();
+
+                return
+                Flux.fromIterable(sellers)
+                    .flatMap(seller ->
+                        Flux.fromIterable(buyers)
+                            .flatMap(buyer ->
+                                this.userRedisService
+                                .getAllWeaponIdsFromMarketByUUID(seller)
+                                .collectList()
+                                .filter(weaponList -> !weaponList.isEmpty())
+                                .flatMap(weaponIds -> {
+                                    String weaponId = weaponIds.get(
+                                        ThreadLocalRandom.current().nextInt(weaponIds.size()));
+
+                                    log.info(
+                                        "Buyer: {}, Seller: {}, Weapon ID: {}",
+                                        buyer, seller, weaponId
+                                    );
+
+                                    return this.marketService
+                                               .marketTransaction(buyer, seller, weaponId);
+                                })
+                            )
+                    );
+            }).blockLast(); // 使用 blockLast() 等待所有交易完成
+    }
 
     /** 删除随机挑选的 5 个用户。*/
     @Order(8)
