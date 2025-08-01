@@ -1,4 +1,4 @@
-package com.example.jesse.item_market.config;
+package com.example.jesse.item_market.utils;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -11,48 +11,65 @@ import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsHex;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final public class KeyConcat
 {
+    /** 用户数据键前缀。*/
     public static final String USER_PREFIX      = "users:";
+
+    /** 用户哈希的用户名字段名。*/
     public static final String USER_NAME_FIELD  = "name";
+
+    /** 用户哈希的用户资金字段名。*/
     public static final String USER_FUNDS_FIELD = "funds";
 
+    /** 用户包裹数据键前缀。*/
     public static final String INVENTORY_PREFIX = "inventories:";
 
+    /** 武器市场数据键前缀。*/
     public static final String MARKET_PREFIX     = "market:weapon-market:";
-    public static final String WEAPON_PRICE_ZSET = "weapon-price";
 
-    /** 组合用户数据键（示例：users:114940680399943670）*/
+    /** 武器市场的价格表数据键。*/
+    public static final String WEAPON_PRICE_ZSET = "market:weapon-market:weapon-price";
+
+    /** 组合用户数据键。（示例：users:114940680399943670）*/
     @Contract(pure = true)
     public static @NotNull String
     getUserKey(String uuid) {
         return USER_PREFIX + uuid;
     }
 
-    /** 组合用户包裹键（示例：inventories:114940680399943670）*/
+    /** 组合用户包裹键。（示例：inventories:114940680399943670）*/
     @Contract(pure = true)
     public static @NotNull String
     getInventoryKey(String uuid) {
         return INVENTORY_PREFIX + uuid;
     }
 
-    /** 用户集合键（user-name:user-name-set）。*/
+    /** 用户集合键。（示例：user-name:user-name-set）*/
     @Contract(pure = true)
     public static @NotNull String
     getUserSetKey() { return "user-name:user-name-set"; }
 
     /**
-     * 为即将上架至市场的武器生成一个 UUID
+     * 为即将上架至市场的武器生成一个 UUID。
      * （示例：market:weapon-market:weapons:1985f067af74d6d）
      */
     @Contract(pure = true)
     public static @NotNull String
-    getWeaponHashKey() {
+    getNewWeaponHashKey() {
         return MARKET_PREFIX + "weapons:" + generateAsHex();
     }
+
+    /**
+     * 已知武器 ID，拼合对应的键。
+     * （示例：market:weapon-market:weapons:1985f067af74d6d）
+     */
+    @Contract(pure = true)
+    public static @NotNull String
+    getWeaponHashKey(String weaponId) { return MARKET_PREFIX + "weapons:" + weaponId;}
 
     /** 存储上架武器价格的 Zset key（market:weapon-market:weapon-price） */
     @Contract(pure = true)
     public static @NotNull String
     getWeaponPriceZsetKey() {
-        return MARKET_PREFIX + WEAPON_PRICE_ZSET;
+        return WEAPON_PRICE_ZSET;
     }
 }
