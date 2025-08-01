@@ -56,6 +56,7 @@ redis.call(
     'XADD',
     'market:log', '*',
     'event', 'WEAPON_LISTING',
+    'weaponId', weaponUUID,
     'weaponName', weaponName,
     'seller', sellerUUID,
     'timestamp', timestamp
