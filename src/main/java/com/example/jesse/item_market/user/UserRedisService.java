@@ -16,6 +16,9 @@ public interface UserRedisService
     /** 获取某个用户上架至市场的所有武器。*/
     Flux<Weapons> getAllWeaponsFromMarketByUUID(String uuid);
 
+    /** 获取某个用户上架至市场的所有武器的 ID。*/
+    Flux<String> getAllWeaponIdsFromMarketByUUID(String uuid);
+
     /**
      * 创建一个新用户，并为它随机挑选几件武器放入包裹，
      * 分为以下几个操作：
@@ -33,7 +36,7 @@ public interface UserRedisService
      *
      * @param userName 新用户名
      *
-     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     * @return 发布新用户 UUID 的 Mono
      */
     Mono<String> addNewUser(String userName);
 
@@ -70,9 +73,9 @@ public interface UserRedisService
      * @param weapon 武器类型
      * @param price  销售价格
      *
-     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     * @return 发布上架至市场的武器 UID 的 Mono
      */
-    Mono<Void> addWeaponToMarket(String uuid, @NotNull Weapons weapon, double price);
+    Mono<String> addWeaponToMarket(String uuid, @NotNull Weapons weapon, double price);
 
     /**
      * 用户从市场上下架某个武器，分为以下几个操作。
