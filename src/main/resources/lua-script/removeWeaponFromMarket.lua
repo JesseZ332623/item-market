@@ -4,13 +4,15 @@
     KEYS:
         weaponPriceZsetKey      挂在市场上的武器价格键（market:weapon-market:weapon-price）
         sellerInventoryListKey  卖家包裹键（如：inventories:114935169325609268）
+        userKey                 用户键（如：users:114934523722107784）
 
     ARGV:
         sellerUUID 卖家 UUID
         weaponName 武器名
 ]]
-local weaponPriceZsetKey     = KEYS[1]
-local sellerInventoryListKey = KEYS[2]
+local userKey                = KEYS[1]
+local weaponPriceZsetKey     = KEYS[2]
+local sellerInventoryListKey = KEYS[3]
 
 local sellerUUID  = ARGV[1]
 local weaponName  = ARGV[2]
@@ -57,7 +59,7 @@ repeat
             redis.call(
                 'XADD',
                 'market:log', '*',
-                'event', 'WEAPON_DELETE',
+                'event', 'WEAPON_OUTBOUND',
                 'weaponId', "\"" ..weaponId.. "\"",
                 'weaponName', weaponName,
                 'seller', sellerUUID,
@@ -67,6 +69,8 @@ repeat
     end
 until cursor == "0"
 
+local userName = redis.call('HGET', userKey, "\"name\"")
+
 -- 重新将武器放回对应用户的包裹中
 redis.call('RPUSH', sellerInventoryListKey, weaponName)
 redis.call(
@@ -74,7 +78,8 @@ redis.call(
     'inventories:log', '*',
     'event', 'WEAPON_INBOUND',
     'uuid', sellerUUID,
-    'user-name', '---',
+    'user-name', userName,
+    'weapon-name', weaponName,
     'amount', '1',
     'timestamp', timestamp
 )
