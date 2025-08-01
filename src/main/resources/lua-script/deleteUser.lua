@@ -18,8 +18,6 @@ local userFundsField = ARGV[2]
 
 local timestamp = redis.call('TIME')[1]
 
-redis.log(redis.LOG_NOTICE, "userKey = " .. userKey)
-
 -- 获取用户名字符串并检查
 local userName = redis.call('HGET', userKey, userNameField)
 
