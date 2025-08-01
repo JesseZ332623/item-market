@@ -58,6 +58,7 @@ repeat
                 'XADD',
                 'market:log', '*',
                 'event', 'WEAPON_DELETE',
+                'weaponId', "\"" ..weaponId.. "\"",
                 'weaponName', weaponName,
                 'seller', sellerUUID,
                 'timestamp', timestamp
