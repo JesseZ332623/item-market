@@ -31,7 +31,9 @@
 ### 项目 Lua 脚本详见：
 [Lua scripts](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script)
 
-下一个星期，前辈其实可以考虑安排点任务给我，
-主要的技术栈我基本上都搞明白了，不再是白纸一张了。
+下一个星期，前辈其实可以考虑安排点任务给我，主要的技术栈我基本上都搞明白了，不再是白纸一张了。
+再继续自己学下去，效率就没有那么快了，而且我一直和各位缺乏充分交流（捂脸）。
+
+以上，祝前辈周末愉快！
 
 ### Latest Update date: 2025-08-01
