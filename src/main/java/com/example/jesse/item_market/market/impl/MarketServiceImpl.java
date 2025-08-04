@@ -19,6 +19,7 @@ import java.util.List;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.KeyConcat.*;
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.MARKET_OPERATOR;
 import static java.lang.String.format;
 
 /** 市场交易操作实现类。*/
@@ -68,7 +69,7 @@ public class MarketServiceImpl implements MarketService
     {
         return
         this.luaScriptReader
-            .fromFile("marketTransaction.lua")
+            .fromFile(MARKET_OPERATOR, "marketTransaction.lua")
             .flatMap((script) ->
                 this.redisScriptTemplate
                     .execute(
