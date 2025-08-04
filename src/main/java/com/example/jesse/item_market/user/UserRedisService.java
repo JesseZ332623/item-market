@@ -1,5 +1,6 @@
 package com.example.jesse.item_market.user;
 
+import com.example.jesse.item_market.user.dto.UserInfo;
 import org.jetbrains.annotations.NotNull;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -18,6 +19,9 @@ public interface UserRedisService
 
     /** 获取某个用户上架至市场的所有武器的 ID。*/
     Flux<String> getAllWeaponIdsFromMarketByUUID(String uuid);
+
+    /** 获取某个用户的数据。*/
+    Mono<UserInfo> getUserInfoByUUID(String uuid);
 
     /**
      * 创建一个新用户，并为它随机挑选几件武器放入包裹，
@@ -39,6 +43,22 @@ public interface UserRedisService
      * @return 发布新用户 UUID 的 Mono
      */
     Mono<String> addNewUser(String userName);
+
+    /**
+     * 用户记录另一个用户为最近联系人，分为以下几个操作：
+     *
+     * <ol>
+     *     <li>检查要添加的用户十是否存在与列表中，如果存在要移除</li>
+     *     <li>往列表中添加指定用户</li>
+     *     <li>倘若列表长度超过上限（假设是 100 个），则移除列表末尾的联系人</li>
+     * </ol>
+     *
+     * @param uuid         哪个用户要添加一条最近联系人？
+     * @param contactName  哪个用户成为了它的最近联系人？
+     *
+     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     */
+    Mono<Void> addNewContact(String uuid, String contactName);
 
     /**
      * 为用户的包裹添加一件武器。
