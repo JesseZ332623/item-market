@@ -66,6 +66,17 @@ public class UserRedisServiceImpl implements UserRedisService
                 redisGenericErrorHandel(exception, null));
     }
 
+    /** 获取某个用户的最近联系人列表。*/
+    @Override
+    public Flux<String>
+    getContactListByUUID(String uuid)
+    {
+        return
+        this.redisTemplate.opsForList()
+            .range(getContactKey(uuid), 0L, -1L)
+            .map((name) -> (String) name);
+    }
+
     /** 获取某个用户包裹中的所有武器。*/
     @Override
     public Flux<Weapons>
@@ -77,8 +88,7 @@ public class UserRedisServiceImpl implements UserRedisService
             .switchIfEmpty(
                 Mono.error(
                     new ProjectRedisOperatorException(
-                        format("User: %s weapons not found!", uuid),
-                        null
+                        format("User: %s weapons not found!", uuid), null
                     )
                 )
             )
@@ -259,6 +269,58 @@ public class UserRedisServiceImpl implements UserRedisService
                                 Mono.error(
                                     new IllegalArgumentException(
                                         "Self added is forbidden!"
+                                    )
+                                );
+
+                            case "SUCCESS" -> Mono.empty();
+
+                            case null, default ->
+                                Mono.error(
+                                    new IllegalStateException(
+                                        "Unexpected result: " + result.getResult()
+                                    )
+                                );
+                        }
+                    )
+            )
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .then();
+    }
+
+    /**
+     * 用户删除自己最近联系人列表的某个用户。
+     *
+     * @param uuid         哪个用户要删除一条最近联系人？
+     * @param contactName  要删除哪个用户？
+     *
+     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     */
+    @Override
+    public Mono<Void>
+    removeContact(String uuid, String contactName)
+    {
+        final String contactKey    = getContactKey(uuid);
+        final String contactLogKey = getContactLogKey();
+
+        return
+        this.luaScriptReader
+            .fromFile(USER_OPERATOR, "removeContact.lua")
+            .flatMap((script) ->
+                this.redisScriptTemplate
+                    .execute(
+                        script,
+                        List.of(contactKey, contactLogKey),
+                        uuid, contactName)
+                    .next()
+                    .timeout(Duration.ofSeconds(3L))
+                    .flatMap((result) ->
+                        switch (result.getResult())
+                        {
+                            case "CONCAT_NAME_NOT_FOUND" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("Concat name: %s not found!", contactName)
                                     )
                                 );
 
