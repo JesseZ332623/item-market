@@ -57,6 +57,34 @@ public class ProjectOperatorTest
             .blockLast();
     }
 
+    /**  */
+    @Order(2)
+    @Test
+    public void TestAddNewContact()
+    {
+        this.userRedisService
+            .getAllUserUUID()
+            .flatMap((uuid) ->
+                this.userRedisService
+                    .getUserInfoByUUID(uuid)
+                    .flatMap((userInfo) -> {
+                        List<String> listWithoutSelf
+                            = TEST_USERS.stream()
+                                .filter(
+                                    (userName) ->
+                                        !userName.equals(userInfo.getUserName()))
+                                .toList();
+
+                        return
+                        Flux.fromIterable(listWithoutSelf)
+                            .flatMap((userName) ->
+                                this.userRedisService
+                                    .addNewContact(uuid, userName))
+                            .then();
+                    })
+            ).blockLast();
+    }
+
     /** 为所有用户入库 10 个随机武器。*/
     @Order(2)
     @Test
