@@ -2,6 +2,7 @@ package com.example.jesse.item_market.user.impl;
 
 import com.example.jesse.item_market.user.UserRedisService;
 import com.example.jesse.item_market.user.Weapons;
+import com.example.jesse.item_market.user.dto.UserInfo;
 import com.example.jesse.item_market.utils.LimitRandomElement;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
@@ -9,6 +10,7 @@ import com.example.jesse.item_market.errorhandle.ProjectRedisOperatorException;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.*;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -31,6 +33,7 @@ import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPE
 @Service
 public class UserRedisServiceImpl implements UserRedisService
 {
+    /** 十八般武器列表。*/
     private final static List<Weapons> WEAPONS
         = Arrays.asList(Weapons.values());
 
@@ -104,6 +107,21 @@ public class UserRedisServiceImpl implements UserRedisService
             );
     }
 
+    @Override
+    public Mono<UserInfo>
+    getUserInfoByUUID(String uuid)
+    {
+        return
+        this.redisTemplate.opsForHash()
+            .multiGet(getUserKey(uuid), List.of("\"name\"", "\"funds\""))
+            .map((result) ->
+                new UserInfo()
+                    .setUserName((String) result.getFirst())
+                    .setUserFunds((double) result.get(1))
+            );
+    }
+
+    /** 获取某个用户上架至市场的所有武器的 ID。*/
     @Override
     public Flux<String>
     getAllWeaponIdsFromMarketByUUID(String uuid)
@@ -200,6 +218,65 @@ public class UserRedisServiceImpl implements UserRedisService
                             )
                     );
         });
+    }
+
+    /**
+     * 用户记录另一个用户为最近联系人，分为以下几个操作：
+     *
+     * <ol>
+     *     <li>检查要添加的用户十是否存在与列表中，如果存在要移除</li>
+     *     <li>往列表中添加指定用户</li>
+     *     <li>倘若列表长度超过上限（假设是 100 个），则移除列表末尾的联系人</li>
+     * </ol>
+     *
+     * @param uuid         哪个用户要添加一条最近联系人？
+     * @param contactName  哪个用户成为了它的最近联系人？
+     *
+     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     */
+    @Override
+    public Mono<Void>
+    addNewContact(String uuid, String contactName)
+    {
+        final String userKey       = getUserKey(uuid);
+        final String contactKey    = getContactKey(uuid);
+        final String contactLogKey = getContactLogKey();
+        final int USER_MAX_CONTACT = 10;
+
+        return
+        this.luaScriptReader
+            .fromFile(USER_OPERATOR, "addNewContact.lua")
+            .flatMap((script) ->
+                this.redisScriptTemplate
+                    .execute(
+                        script, List.of(userKey, contactKey, contactLogKey),
+                        uuid, contactName, USER_MAX_CONTACT)
+                    .next()
+                    .timeout(Duration.ofSeconds(3L))
+                    .flatMap((result) ->
+                        switch (result.getResult())
+                        {
+                            case "SELF_ADDED" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        "Self added is forbidden!"
+                                    )
+                                );
+
+                            case "SUCCESS" -> Mono.empty();
+
+                            case null, default ->
+                                Mono.error(
+                                    new IllegalStateException(
+                                        "Unexpected result: " + result.getResult()
+                                    )
+                                );
+                        }
+                    )
+            )
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .then();
     }
 
     /**
