@@ -24,6 +24,7 @@ import static com.example.jesse.item_market.utils.KeyConcat.getUserKey;
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsSting;
 import static java.lang.String.format;
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPERATOR;
 
 /** 用户 Redis 操作实现类。*/
 @Slf4j
@@ -159,7 +160,8 @@ public class UserRedisServiceImpl implements UserRedisService
 
                 System.out.println(weaponsString);
 
-                return this.luaScriptReader.fromFile("addNewUser.lua")
+                return this.luaScriptReader
+                    .fromFile(USER_OPERATOR, "addNewUser.lua")
                     .flatMap((script) ->
                         this.redisScriptTemplate
                             .execute(
@@ -213,7 +215,7 @@ public class UserRedisServiceImpl implements UserRedisService
     addWeaponToInventory(String uuid, @NotNull Weapons weapon)
     {
         return this.luaScriptReader
-            .fromFile("addWeaponToInventory.lua")
+            .fromFile(USER_OPERATOR, "addWeaponToInventory.lua")
             .flatMap((script) ->
                 this.redisScriptTemplate.execute(
                         script, List.of(getUserKey(uuid), getInventoryKey(uuid)), weapon.getItemName())
@@ -242,7 +244,7 @@ public class UserRedisServiceImpl implements UserRedisService
 
         return
         this.luaScriptReader
-            .fromFile("destroyWeaponFromInventory.lua")
+            .fromFile(USER_OPERATOR, "destroyWeaponFromInventory.lua")
             .flatMap((script) ->
                 this.redisScriptTemplate
                     .execute(
@@ -298,7 +300,7 @@ public class UserRedisServiceImpl implements UserRedisService
                 = weaponKey.substring(weaponKey.lastIndexOf(":") + 1);
 
             return this.luaScriptReader
-                .fromFile("addWeaponToMarket.lua")
+                .fromFile(USER_OPERATOR, "addWeaponToMarket.lua")
                 .flatMap((script) ->
                     this.redisScriptTemplate
                         .execute(
@@ -357,7 +359,7 @@ public class UserRedisServiceImpl implements UserRedisService
 
         return
         this.luaScriptReader
-            .fromFile("removeWeaponFromMarket.lua")
+            .fromFile(USER_OPERATOR, "removeWeaponFromMarket.lua")
             .flatMap((script) ->
                 this.redisScriptTemplate
                     .execute(
@@ -408,7 +410,7 @@ public class UserRedisServiceImpl implements UserRedisService
         final String inventoryKey = getInventoryKey(uuid);
 
         return this.luaScriptReader
-                   .fromFile("deleteUser.lua")
+                   .fromFile(USER_OPERATOR, "deleteUser.lua")
                    .flatMap((script) ->
                        this.redisScriptTemplate.execute(
                            script,
