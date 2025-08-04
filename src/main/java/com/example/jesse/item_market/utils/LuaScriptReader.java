@@ -5,7 +5,6 @@ import com.example.jesse.item_market.utils.exception.LuaScriptOperatorFailed;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -17,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.MARKET_OPERATOR;
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPERATOR;
 import static java.lang.String.format;
 
 /** Redis Lua 脚本读取器实现。*/
@@ -29,13 +30,46 @@ final public class LuaScriptReader
     @Value("${app.lua-script-path}")
     private String luaScriptPath;
 
-    @Contract("_ -> new")
+    private Path
+    getFullScriptPath(
+        @NotNull LuaScriptOperatorType operatorType,
+        String luaScriptName
+    )
+    {
+        switch (operatorType)
+        {
+            case USER_OPERATOR ->
+            {
+                return
+                Path.of(luaScriptPath)
+                    .resolve(USER_OPERATOR.getTypeName())
+                    .resolve(luaScriptName)
+                    .normalize();
+            }
+
+            case MARKET_OPERATOR ->
+            {
+                return
+                Path.of(luaScriptPath)
+                    .resolve(MARKET_OPERATOR.getTypeName())
+                    .resolve(luaScriptName)
+                    .normalize();
+            }
+
+            case null, default ->
+                throw new LuaScriptOperatorFailed(
+                    "Invalid lua script path!", null
+                );
+        }
+    }
+
     public @NotNull Mono<DefaultRedisScript<LuaOperatorResult>>
-    fromFile(String luaScriptName)
+    fromFile(LuaScriptOperatorType operatorType, String luaScriptName)
     {
         return Mono.fromCallable(() -> {
-            Path scriptPath = Path.of(luaScriptPath)
-                .resolve(luaScriptName).normalize();
+
+            Path scriptPath
+                = this.getFullScriptPath(operatorType, luaScriptName);
 
             if (!Files.exists(scriptPath))
             {
