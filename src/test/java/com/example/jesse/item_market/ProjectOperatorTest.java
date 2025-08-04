@@ -57,38 +57,11 @@ public class ProjectOperatorTest
             .blockLast();
     }
 
-    /** 随机挑选几个用户删除他们最近联系人列表的某两个用户。*/
-    @Order(2)
-    @Test
-    public void TestRemoveContact()
-    {
-        this.userRedisService
-            .getAllUserUUID().collectList()
-            .map((uuids) ->
-                getRandomLimit(uuids, 5L))
-            .flatMap((selectedIds) ->
-                Flux.fromIterable(selectedIds)
-                    .flatMap((uuid) ->
-                        this.userRedisService
-                            .getContactListByUUID(uuid)
-                            .collectList()
-                            .map((contacts) ->
-                                getRandomLimit(contacts, 2L))
-                            .flatMap((selectedContacts) ->
-                                Flux.fromIterable(selectedContacts)
-                                    .flatMap((contact) ->
-                                         this.userRedisService.removeContact(uuid, contact))
-                                    .then()
-                            ))
-                    .then()
-            ).block();
-    }
-
     /**
      * 对于 TEST_USERS 中的每一个用户，
      * 将用户列表中处自己之外的用户全部保存为最近联系人。
      */
-    @Order(3)
+    @Order(2)
     @Test
     public void TestAddNewContact()
     {
@@ -113,6 +86,33 @@ public class ProjectOperatorTest
                             .then();
                     })
             ).blockLast();
+    }
+
+    /** 随机挑选几个用户删除他们最近联系人列表的某两个用户。*/
+    @Order(3)
+    @Test
+    public void TestRemoveContact()
+    {
+        this.userRedisService
+            .getAllUserUUID().collectList()
+            .map((uuids) ->
+                getRandomLimit(uuids, 5L))
+            .flatMap((selectedIds) ->
+                Flux.fromIterable(selectedIds)
+                    .flatMap((uuid) ->
+                        this.userRedisService
+                            .getContactListByUUID(uuid)
+                            .collectList()
+                            .map((contacts) ->
+                                getRandomLimit(contacts, 2L))
+                            .flatMap((selectedContacts) ->
+                                Flux.fromIterable(selectedContacts)
+                                    .flatMap((contact) ->
+                                        this.userRedisService.removeContact(uuid, contact))
+                                    .then()
+                            ))
+                    .then()
+            ).block();
     }
 
     /** 为所有用户入库 10 个随机武器。*/
