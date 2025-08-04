@@ -88,7 +88,7 @@ public class ProjectOperatorTest
      * 对于 TEST_USERS 中的每一个用户，
      * 将用户列表中处自己之外的用户全部保存为最近联系人。
      */
-    @Order(2)
+    @Order(3)
     @Test
     public void TestAddNewContact()
     {
@@ -116,7 +116,7 @@ public class ProjectOperatorTest
     }
 
     /** 为所有用户入库 10 个随机武器。*/
-    @Order(3)
+    @Order(4)
     @Test
     public void TestAddWeaponToInventory()
     {
@@ -133,7 +133,7 @@ public class ProjectOperatorTest
     }
 
     /** 每一个用户销毁自己包裹中的两件随机武器。*/
-    @Order(4)
+    @Order(5)
     @Test
     public void TestDestroyWeaponFromInventory()
     {
@@ -158,7 +158,7 @@ public class ProjectOperatorTest
      * 随机取几个用户，
      * 将他们的随机几个装备上架市场售卖。
      */
-    @Order(5)
+    @Order(6)
     @Test
     public void TestAddWeaponToMarket()
     {
@@ -200,7 +200,7 @@ public class ProjectOperatorTest
     }
 
     /** 获取每一个用户在市场出售的武器列表。*/
-    @Order(6)
+    @Order(7)
     @Test
     public void TestGetAllWeaponsFromMarketByUUID()
     {
@@ -214,7 +214,7 @@ public class ProjectOperatorTest
     }
 
     /** 将每一个用户上架在市场（如果有的话）的其中 2 件武器下架，放回用户自己的包裹。*/
-    @Order(7)
+    @Order(8)
     @Test
     public void TestRemoveWeaponFromMarket()
     {
@@ -235,7 +235,7 @@ public class ProjectOperatorTest
             ).blockLast();
     }
 
-    @Order(8)
+    @Order(9)
     @Test
     void TestMarketTransaction()
     {
@@ -287,7 +287,7 @@ public class ProjectOperatorTest
     }
 
     /** 删除随机挑选的 5 个用户。*/
-    @Order(9)
+    @Order(10)
     @Test
     public void TestDeleteUser()
     {
