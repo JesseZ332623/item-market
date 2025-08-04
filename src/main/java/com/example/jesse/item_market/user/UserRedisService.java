@@ -11,6 +11,9 @@ public interface UserRedisService
     /** 获取所有用户的 UUID。*/
     Flux<String> getAllUserUUID();
 
+    /** 获取某个用户的最近联系人列表。*/
+    Flux<String> getContactListByUUID(String uuid);
+
     /** 获取某个用户包裹中的所有武器。*/
     Flux<Weapons> getAllWeaponsFromInventoryByUUID(String uuid);
 
@@ -59,6 +62,16 @@ public interface UserRedisService
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
     Mono<Void> addNewContact(String uuid, String contactName);
+
+    /**
+     * 用户删除自己最近联系人列表的某个用户。
+     *
+     * @param uuid         哪个用户要删除一条最近联系人？
+     * @param contactName  要删除哪个用户？
+     *
+     * @return 不发布任何数据的 Mono，表示操作整体是否完成
+     */
+    Mono<Void> removeContact(String uuid, String contactName);
 
     /**
      * 为用户的包裹添加一件武器。
