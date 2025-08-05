@@ -20,6 +20,12 @@ final public class KeyConcat
     /** 用户哈希的用户资金字段名。*/
     public static final String USER_FUNDS_FIELD = "funds";
 
+    /** 用户哈希的用户公会字段名。*/
+    public static final String USER_GUILD_FIELD = "guild";
+
+    /** 用户哈希的用户公会身份字段名。*/
+    public static final String USER_GUILD_ROLE_FIELD = "guild-role";
+
     /** 用户联系人数据键前缀。*/
     public static final String USER_CONTACT_PREFIX = "contact:";
 
@@ -31,6 +37,12 @@ final public class KeyConcat
 
     /** 武器市场的价格表数据键。*/
     public static final String WEAPON_PRICE_ZSET = "market:weapon-market:weapon-price";
+
+    /** 公会数据键前缀。*/
+    public static final String GUILD_PREFIX = "guild:";
+
+    /** 公会名数据键。*/
+    public static final String GUILD_NAME_SET_KEY = "guild:guild-name:";
 
     /** 组合用户数据键。（示例：users:114940680399943670）*/
     @Contract(pure = true)
@@ -83,4 +95,23 @@ final public class KeyConcat
     getWeaponPriceZsetKey() {
         return WEAPON_PRICE_ZSET;
     }
+
+    /** 组合公会键。（示例:guild:The-Dark-Brotherhood） */
+    @Contract(pure = true)
+    public static @NotNull String
+    getGuildKey(String guildName) { return GUILD_PREFIX + guildName; }
+
+    /** 获取公会名数据键。*/
+    @Contract(pure = true)
+    public static @NotNull String
+    getGuildNameSetKey() { return GUILD_NAME_SET_KEY + "guild-name-set"; }
+
+    /** 组合公会操作日志键。*/
+    @Contract(pure = true)
+    public static @NotNull String
+    getGuildLogKey() { return GUILD_PREFIX + "log"; }
+
+    @Contract(pure = true)
+    public static @NotNull String
+    getGuildNameSetLogKey() { return GUILD_NAME_SET_KEY + "log"; }
 }
