@@ -27,6 +27,18 @@ public interface UserRedisService
     Mono<UserInfo> getUserInfoByUUID(String uuid);
 
     /**
+     * 当用户在前端页面的最近联系人搜索框中输入若干字母时，
+     * 匹配该用户最近联系人列表中所有 prefix 开头的联系人名。
+     * 由于最近联系人列表长度有限（不超过 175），所以效率不会慢。
+     *
+     * @param uuid   搜索哪个用户的最近联系人列表？
+     * @param prefix 用户在搜索框输入了什么？
+     *
+     * @return 发布匹配该用户最近联系人列表中所有 prefix 开头的联系人名数据的 Flux
+     */
+    Flux<String> fetchAutoCompleteContact(String uuid, String prefix);
+
+    /**
      * 创建一个新用户，并为它随机挑选几件武器放入包裹，
      * 分为以下几个操作：
      *
