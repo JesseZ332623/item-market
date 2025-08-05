@@ -16,8 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static com.example.jesse.item_market.utils.LuaScriptOperatorType.MARKET_OPERATOR;
-import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPERATOR;
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.*;
 import static java.lang.String.format;
 
 /** Redis Lua 脚本读取器实现。*/
@@ -54,6 +53,15 @@ final public class LuaScriptReader
                     .resolve(MARKET_OPERATOR.getTypeName())
                     .resolve(luaScriptName)
                     .normalize();
+            }
+
+            case GUILD_OPERATOR ->
+            {
+                return
+                    Path.of(luaScriptPath)
+                        .resolve(GUILD_OPERATOR.getTypeName())
+                        .resolve(luaScriptName)
+                        .normalize();
             }
 
             case null, default ->
