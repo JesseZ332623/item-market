@@ -6,21 +6,25 @@
         userSetKey       用户集合键（用来保证用户名的唯一性）
         userInventoryKey 用户包裹键（如：inventories:114935169325609268）
     ARGV:
-        userNameField    用户名哈希字段名
-        userFundsField   用户资金哈希字段名
-        newUserName      用户名（如：Peter，Jesse）
-        newUserFunds     新用户初始资金
-        initWeaponsStr   新用户的初始武器（空格分割的字符串，如："Sword Shield Axe ..."）
+        userNameField       用户名哈希字段名
+        userFundsField      用户资金哈希字段名
+        userGuildField      用户哈希的用户公会字段名
+        userGuildRoleField  用户哈希的用户公会身份字段名
+        newUserName         用户名（如：Peter，Jesse）
+        newUserFunds        新用户初始资金
+        initWeaponsStr      新用户的初始武器（空格分割的字符串，如："Sword Shield Axe ..."）
 ]]
 local newUserKey       = KEYS[1]
 local userSetKey       = KEYS[2]
 local userInventoryKey = KEYS[3]
 
-local userNameField    = ARGV[1]
-local userFundsField   = ARGV[2]
-local newUserName      = ARGV[3]
-local newUserFunds     = ARGV[4]
-local initWeaponsStr   = string.match(ARGV[5], '^"(.*)"$')
+local userNameField      = ARGV[1]
+local userFundsField     = ARGV[2]
+local userGuildField     = ARGV[3]
+local userGuildRoleField = ARGV[4]
+local newUserName        = ARGV[5]
+local newUserFunds       = ARGV[6]
+local initWeaponsStr     = string.match(ARGV[7], '^"(.*)"$')
 
 local timestamp = redis.call('TIME')[1]
 
@@ -47,7 +51,10 @@ redis.call(
 -- 添加新用户
 redis.call(
     'HSET', newUserKey,
-    userNameField, newUserName, userFundsField, newUserFunds
+    userNameField, newUserName,
+    userFundsField, newUserFunds,
+    userGuildField, '---',              -- 新用户没有加入任何公会
+    userGuildRoleField, '---'
 )
 
 -- 为该用户添加初始武器
