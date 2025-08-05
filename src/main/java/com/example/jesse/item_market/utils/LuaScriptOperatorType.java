@@ -6,7 +6,8 @@ import lombok.Getter;
 public enum LuaScriptOperatorType
 {
     USER_OPERATOR("user-operator"),
-    MARKET_OPERATOR("market-operator");
+    MARKET_OPERATOR("market-operator"),
+    GUILD_OPERATOR("guild-operator");
 
     @Getter
     final String typeName;
