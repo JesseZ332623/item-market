@@ -1,5 +1,6 @@
 package com.example.jesse.item_market;
 
+import com.example.jesse.item_market.guild.GuildRedisService;
 import com.example.jesse.item_market.market.MarketService;
 import com.example.jesse.item_market.user.UserRedisService;
 import com.example.jesse.item_market.user.Weapons;
@@ -17,6 +18,8 @@ import reactor.util.function.Tuples;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.example.jesse.item_market.utils.LimitRandomElement.getRandomLimit;
 import static com.example.jesse.item_market.utils.TestUtils.SELECT_AMOUNT;
@@ -32,6 +35,9 @@ public class ProjectOperatorTest
 
     @Autowired
     private MarketService marketService;
+
+    @Autowired
+    private GuildRedisService guildRedisService;
 
     private final static List<String> TEST_USERS
         = List.of(
@@ -235,6 +241,7 @@ public class ProjectOperatorTest
             ).blockLast();
     }
 
+    /** 市场交易测试。*/
     @Order(9)
     @Test
     void TestMarketTransaction()
@@ -258,7 +265,7 @@ public class ProjectOperatorTest
         splitUsers
             .flatMapMany(usersTuple -> {
                 List<String> sellers = usersTuple.getT2();
-                List<String> buyers = usersTuple.getT1();
+                List<String> buyers  = usersTuple.getT1();
 
                 return
                 Flux.fromIterable(sellers)
@@ -286,8 +293,43 @@ public class ProjectOperatorTest
             }).blockLast(); // 使用 blockLast() 等待所有交易完成
     }
 
-    /** 删除随机挑选的 5 个用户。*/
     @Order(10)
+    @Test
+    public void TestCreateGuild()
+    {
+        final List<String> testGuildName
+            = List.of(
+                "Council of the Black Harvest",
+                "The Dark Brotherhood",
+                "Gank and Spank",
+                "Method",
+                "C'est La Vie"
+        );
+
+        Mono<Map<String, String>> testData
+            = this.userRedisService
+                  .getAllUserUUID()
+                  .collectList()
+                  .map((uuids) -> {
+                      List<String> testUser = getRandomLimit(uuids, testGuildName.size());
+
+                      return
+                      IntStream.range(0, testUser.size())
+                               .boxed()
+                               .collect(Collectors.toMap(testUser::get, testGuildName::get));
+                  });
+
+        testData.map((dat) -> dat.entrySet().stream())
+                .flatMap((entryStream) ->
+                    Flux.fromStream(entryStream)
+                        .flatMap((entry) ->
+                            this.guildRedisService.createGuild(entry.getKey(), entry.getValue()))
+                        .then()
+            ).block();
+    }
+
+    /** 删除随机挑选的 5 个用户。*/
+    @Order(11)
     @Test
     public void TestDeleteUser()
     {
