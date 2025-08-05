@@ -18,6 +18,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static com.example.jesse.item_market.utils.KeyConcat.*;
@@ -77,7 +78,32 @@ public class UserRedisServiceImpl implements UserRedisService
             .map((name) -> (String) name);
     }
 
-    /** 获取某个用户包裹中的所有武器。*/
+    /**
+     * 当用户在前端页面的最近联系人搜索框中输入若干字母时，
+     * 匹配该用户最近联系人列表中所有 prefix 开头的联系人名。
+     * 由于最近联系人列表长度有限（不超过 175），所以效率不会慢。
+     *
+     * @param uuid   搜索哪个用户的最近联系人列表？
+     * @param prefix 用户在搜索框输入了什么？
+     *
+     * @return 发布匹配该用户最近联系人列表中所有 prefix 开头的联系人名数据的 Mono
+     */
+    @Override
+    public Flux<String>
+    fetchAutoCompleteContact(String uuid, String prefix)
+    {
+        return
+        this.redisTemplate
+            .opsForList()
+            .range(getContactKey(uuid), 0 , -1)
+            .timeout(Duration.ofSeconds(5L))
+            .map((res) -> ((String) res).toLowerCase(Locale.ROOT))
+            .filter((contact) ->
+                (contact.startsWith(prefix.toLowerCase(Locale.ROOT))))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null));
+    }
+
     @Override
     public Flux<Weapons>
     getAllWeaponsFromInventoryByUUID(String uuid)
@@ -196,6 +222,8 @@ public class UserRedisServiceImpl implements UserRedisService
                                 List.of(userKey, userSetKey, inventoryKey),
                                 USER_NAME_FIELD,
                                 USER_FUNDS_FIELD,
+                                USER_GUILD_FIELD,
+                                USER_GUILD_ROLE_FIELD,
                                 userName,
                                 NEW_USER_FUNDS,
                                 weaponsString)
