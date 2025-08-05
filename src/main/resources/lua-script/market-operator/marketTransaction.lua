@@ -104,7 +104,7 @@ redis.call('HINCRBYFLOAT', sellerUserKey, "\"funds\"", formatWeaponPrice)
 redis.call(
     'XADD',
     'users:log', '*',
-    'event', 'USER_FUNDS_INCR',
+    'event', 'SELLER_FUNDS_INCR',
     'uuid', sellerUUID,
     'user-name', sellerName,
     'user-funds', "+" ..formatWeaponPrice,
@@ -116,7 +116,7 @@ redis.call('HINCRBYFLOAT', buyerUserKey, "\"funds\"", -formatWeaponPrice)
 redis.call(
     'XADD',
     'users:log', '*',
-    'event', 'USER_FUNDS_INCR',
+    'event', 'BUYER_FUNDS_REDUCE',
     'uuid', buyerUUID,
     'user-name', buyerName,
     'user-funds', "-" ..formatWeaponPrice,
