@@ -64,7 +64,7 @@ public interface GuildRedisService
     );
 
     /**
-     * 用户删除公会，并向所有公会成员发送解散的消息。
+     * Leader 删除公会，并向所有公会成员发送解散的消息（发送消息的功能后续再研究）。
      *
      * @param uuid      公会创始人 ID
      * @param guildName 公会名
