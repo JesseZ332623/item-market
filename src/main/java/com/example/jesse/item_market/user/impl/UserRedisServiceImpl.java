@@ -211,8 +211,6 @@ public class UserRedisServiceImpl implements UserRedisService
                         .map(Weapons::getItemName)
                         .collect(Collectors.joining(" "));
 
-                System.out.println(weaponsString);
-
                 return this.luaScriptReader
                     .fromFile(USER_OPERATOR, "addNewUser.lua")
                     .flatMap((script) ->
