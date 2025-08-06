@@ -1,18 +1,29 @@
 package com.example.jesse.item_market.guild.impl;
 
 import com.example.jesse.item_market.guild.GuildRedisService;
+import com.example.jesse.item_market.guild.dto.FetchAutoCompleteMemberResult;
+import com.example.jesse.item_market.guild.utils.PrefixRange;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
+import com.example.jesse.item_market.utils.exception.LuaScriptOperatorFailed;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.GUILD_OPERATOR;
@@ -127,8 +138,56 @@ public class GuildRedisServiceImpl implements GuildRedisService
      */
     @Override
     public Mono<Void>
-    joinGuild(String uuid, String guildName) {
-        return null;
+    joinGuild(String uuid, @NotNull String guildName)
+    {
+        String formatGuildName
+            = guildName.trim().replace(' ', '-');
+
+        final String guildKey    = getGuildKey(formatGuildName);
+        final String guildLogKey = getGuildLogKey();
+        final String userKey     = getUserKey(uuid);
+
+        return
+        this.luaScriptReader
+            .fromFile(GUILD_OPERATOR, "joinGuild.lua")
+            .flatMap((script) ->
+                this.redisScriptTemplate
+                    .execute(
+                        script,
+                        List.of(guildKey, guildLogKey, userKey),
+                        uuid, formatGuildName,
+                        USER_GUILD_FIELD, USER_GUILD_ROLE_FIELD)
+                    .timeout(Duration.ofSeconds(5L))
+                    .next()
+                    .flatMap((result) ->
+                        switch(result.getResult())
+                        {
+                            case "ALREADY_JOINED" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("User: %s already join guild!", uuid)
+                                    )
+                                );
+
+                            case "USER_NAME_NOT_FOUND" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("Query user name by: %s not found!", uuid)
+                                    )
+                                );
+
+                            case "SUCCESS" -> Mono.empty();
+
+                            case null, default ->
+                                Mono.error(
+                                    new IllegalStateException(
+                                        "Unexpected result: " + result.getResult()
+                                    )
+                                );
+                        }))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .then();
     }
 
     /**
@@ -141,8 +200,77 @@ public class GuildRedisServiceImpl implements GuildRedisService
      */
     @Override
     public Mono<Void>
-    leaveGuild(String uuid, String guildName) {
-        return null;
+    leaveGuild(String uuid, @NotNull String guildName)
+    {
+        String formatGuildName
+            = guildName.trim().replace(' ', '-');
+
+        final String guildKey    = getGuildKey(formatGuildName);
+        final String guildLogKey = getGuildLogKey();
+        final String userKey     = getUserKey(uuid);
+
+        return
+        this.luaScriptReader
+            .fromFile(GUILD_OPERATOR, "leaveGuild.lua")
+            .flatMap((script) ->
+                this.redisScriptTemplate
+                    .execute(
+                        script,
+                        List.of(guildKey, guildLogKey, userKey),
+                        uuid, formatGuildName,
+                        USER_GUILD_FIELD, USER_GUILD_ROLE_FIELD)
+                    .timeout(Duration.ofSeconds(5L))
+                    .next()
+                    .flatMap((result) ->
+                        switch(result.getResult())
+                        {
+                            case "NOT_JOIN_ANY_GUILD" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("User: %s not join any guild!", uuid)
+                                    )
+                                );
+
+                            case "NOT_BELONG_TO_GUILD" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format(
+                                            "User: %s not belong to guild %s!",
+                                            uuid, formatGuildName
+                                        )
+                                    )
+                                );
+
+                            case "LEAVE_FORBIDDEN" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format(
+                                            "User: %s is leader of guild %s, leave is forbidden!",
+                                            uuid, formatGuildName
+                                        )
+                                    )
+                                );
+
+                            case "USER_NAME_NOT_FOUND" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("Query user name by: %s not found!", uuid)
+                                    )
+                                );
+
+                            case "SUCCESS" -> Mono.empty();
+
+                            case null, default ->
+                                Mono.error(
+                                    new IllegalStateException(
+                                        "Unexpected result: " + result.getResult()
+                                    )
+                                );
+                        })
+            )
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .then();
     }
 
     /**
@@ -156,8 +284,72 @@ public class GuildRedisServiceImpl implements GuildRedisService
      */
     @Override
     public Flux<String>
-    fetchAutoCompleteMember(String guildName, String prefix) {
-        return null;
+    fetchAutoCompleteMember(@NotNull String guildName, String prefix)
+    {
+        return
+        PrefixRange.create(prefix)
+            .flatMapMany((prefixRange) -> {
+                final String guildKey
+                    = getGuildKey(guildName.trim().replace(' ', '-'));
+
+                final String predecessor
+                    = prefixRange.getPredecessor();
+
+                final String successor
+                    = prefixRange.getSuccessor();
+
+                /*
+                 * 这个脚本并不返回 LuaOperatorResult 类型，
+                 * 而是一个 List<Sting>，所以这里的脚本要手动构建。
+                 *
+                 * 从此处暴露一个重大问题：
+                 * 以前为了方便测试，Lua 脚本使用的是本机的绝对路径，
+                 * 但是在生产环境所有的脚本会被打包到 JAR 的指定路径中取，
+                 * 因此使用绝对路径是行不通的，
+                 * 等到后续需要开发前端页面时，Lua 脚本的读取模块就需要重构了。
+                 */
+                Path scriptPath
+                    = luaScriptReader
+                        .getFullScriptPath(
+                            GUILD_OPERATOR,
+                            "fetchAutoCompleteMember.lua"
+                        );
+
+                RedisScript<FetchAutoCompleteMemberResult> script;
+
+                try
+                {
+                    script = RedisScript.of(
+                        Files.readString(scriptPath, StandardCharsets.UTF_8),
+                        FetchAutoCompleteMemberResult.class
+                    );
+                }
+                catch (IOException e)
+                {
+                    throw new LuaScriptOperatorFailed(
+                        "Lua script: fetchAutoCompleteMember.lua not found!",
+                        null
+                    );
+                }
+
+                return
+                this.redisTemplate
+                    .execute(script, List.of(guildKey), predecessor, successor)
+                    .timeout(Duration.ofSeconds(5L))
+                    .next()
+                    .flatMapMany((members) ->
+                        Flux.fromIterable(
+                            members.getMatchedMembers()
+                                   .stream()
+                                   .filter((member) -> !member.contains("{"))
+                                   .toList()
+                        )
+                    );
+            })
+            .onErrorResume(
+                (excption) ->
+                    redisGenericErrorHandel(excption, null)
+            );
     }
 
     /**
@@ -171,12 +363,13 @@ public class GuildRedisServiceImpl implements GuildRedisService
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
     @Override
-    public Mono<Void> sendMessageBetweenMembers(String guildName, String sender, String receiver, String message) {
+    public Mono<Void>
+    sendMessageBetweenMembers(String guildName, String sender, String receiver, String message) {
         return null;
     }
 
     /**
-     * 用户删除公会，并向所有公会成员发送解散的消息。
+     * Leader 删除公会，[并向所有公会成员发送解散的消息](这一步后续再研究)。
      *
      * @param uuid      公会创始人 ID
      * @param guildName 公会名
@@ -184,7 +377,8 @@ public class GuildRedisServiceImpl implements GuildRedisService
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
     @Override
-    public Mono<Void> deleteGuild(String uuid, String guildName) {
+    public Mono<Void>
+    deleteGuild(String uuid, String guildName) {
         return null;
     }
 }
