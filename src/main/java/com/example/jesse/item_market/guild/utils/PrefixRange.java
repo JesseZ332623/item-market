@@ -1,12 +1,10 @@
 package com.example.jesse.item_market.guild.utils;
 
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -41,7 +39,7 @@ import static java.lang.String.format;
  *     </li>
  * </ul>
  */
-@Data
+@Getter
 @Accessors(chain = true)
 @NoArgsConstructor(access  = AccessLevel.PRIVATE)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -67,49 +65,67 @@ final public class PrefixRange
     private String predecessor;
     private String successor;
 
+    /**
+     * 给定前缀 prefix，构建它的前驱与后继。
+     *
+     * @param prefix 给定的前缀字符串
+     *
+     * @return 发布 PrefixRange 的 Mono
+     *
+     * @throws IllegalArgumentException 当 prefix 为 empty 或者存在无效字符时抛出
+     */
     @Contract("_ -> new")
-    static @NotNull PrefixRange create(@NotNull String prefix)
+    public static @NotNull Mono<PrefixRange>
+    create(@NotNull String prefix)
     {
-        if (prefix.isEmpty()) {
-            throw new IllegalArgumentException("Param prefix can't be empty");
-        }
+        return
+        Mono.fromCallable(() -> {
+            if (prefix.isEmpty()) {
+                throw new IllegalArgumentException("Param prefix can't be empty");
+            }
 
-        String lowerCasePrefix = prefix.toLowerCase(Locale.ROOT);
-        int prefixLength       = lowerCasePrefix.length();
+            String lowerCasePrefix = prefix.toLowerCase(Locale.ROOT);
+            int prefixLength       = lowerCasePrefix.length();
 
-        // 找出 prefix 的最后一个字符在 validChars 中的位置
-        char lastChar    = lowerCasePrefix.charAt(prefixLength - 1);
-        Integer position = CHAR_POSITIONS.get(lastChar);
+            // 找出 prefix 的最后一个字符在 validChars 中的位置
+            char lastChar    = lowerCasePrefix.charAt(prefixLength - 1);
+            Integer position = CHAR_POSITIONS.get(lastChar);
 
-        // 注意检查非法字符
-        if (position == null)
-        {
-            throw new IllegalArgumentException(
-                format(
-                    "Illegal character %c in prefix: %s!",
-                    lastChar, prefix
-                )
-            );
-        }
+            // 注意检查非法字符
+            if (position == null)
+            {
+                throw new IllegalArgumentException(
+                    format(
+                        "Illegal character %c in prefix: %s!",
+                        lastChar, prefix
+                    )
+                );
+            }
 
-        String predecessor;
+            String predecessor;
 
-        // 处理最小字符边界
-        if (position == 0) { predecessor = "{" + "{"; }
-        else
-        {
-            // 获取给定前缀的最后一个字符的第一个排在该字符前面的字符
-            char prevChar
-                = VALID_CHARS.charAt(position - 1);
+            // 处理最小字符边界
+            if (position == 0) { predecessor = "{" + "{"; }
+            else
+            {
+                // 获取给定前缀的最后一个字符的第一个排在该字符前面的字符
+                char prevChar
+                    = VALID_CHARS.charAt(position - 1);
 
-            // 构架前驱
-            predecessor
-                = lowerCasePrefix.substring(0, prefixLength - 1) + prevChar + "{";
-        }
+                // 构建前驱
+                predecessor
+                    = lowerCasePrefix.substring(0, prefixLength - 1) + prevChar + "{";
+            }
 
-        // 构建后继
-        String successor = lowerCasePrefix + "{";
+            // 构建后继
+            String successor = lowerCasePrefix + "{";
 
-        return new PrefixRange(predecessor, successor);
+            return new PrefixRange(predecessor, successor);
+        })
+        .onErrorMap(
+            IllegalArgumentException.class,
+            (exception) ->
+                new CreatePrefixRangeFailed(exception.getMessage(), exception)
+        );
     }
 }
