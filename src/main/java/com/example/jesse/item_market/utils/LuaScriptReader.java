@@ -29,7 +29,7 @@ final public class LuaScriptReader
     @Value("${app.lua-script-path}")
     private String luaScriptPath;
 
-    private Path
+    public @NotNull Path
     getFullScriptPath(
         @NotNull LuaScriptOperatorType operatorType,
         String luaScriptName
@@ -58,10 +58,10 @@ final public class LuaScriptReader
             case GUILD_OPERATOR ->
             {
                 return
-                    Path.of(luaScriptPath)
-                        .resolve(GUILD_OPERATOR.getTypeName())
-                        .resolve(luaScriptName)
-                        .normalize();
+                Path.of(luaScriptPath)
+                    .resolve(GUILD_OPERATOR.getTypeName())
+                    .resolve(luaScriptName)
+                    .normalize();
             }
 
             case null, default ->
