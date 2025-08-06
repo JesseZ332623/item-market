@@ -31,7 +31,7 @@ local userGuildRole = redis.call('HGET', userKey, userGuildRoleField)
 
 -- 检查用户的公会信息，对于已经加入公会的用户，不允许再新建公会
 if
-    userGuildName ~= '---' and
+    userGuildName ~= '---' or
     userGuildRole ~= '---'
 then
     return '{"result", "ALREADY_JOINED"}'
@@ -51,12 +51,12 @@ end
 redis.call(
     'XADD',
      guildNameSetLogKey, '*',
-     'event', 'GUILD_NAME_INSERT',
+     'event', 'INSERT_GUILD_NAME',
      'guild-name', formatGuildName,
      'timestamp', timestamp
 )
 
--- 查询用户名，然后写入这个公会的有序列表中
+-- 查询用户名，会写入这个公会的有序列表中
 local userName = redis.call('HGET', userKey, "\"name\"")
 
 if
@@ -69,7 +69,7 @@ redis.call('ZADD', guildKey, 'NX', 0, userName)
 redis.call(
     'XADD',
     guildLogKey, '*',
-    'event', 'GUILD_CREATE',
+    'event', 'CREATE_GUILD',
     'uuid', uuid,
     'guild-name', formatGuildName,
     'timestamp', timestamp
