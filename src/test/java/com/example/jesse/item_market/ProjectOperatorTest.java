@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.connection.RedisServerCommands;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
@@ -30,6 +32,10 @@ import static com.example.jesse.item_market.utils.TestUtils.SELECT_AMOUNT;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class ProjectOperatorTest
 {
+    @Autowired
+    private
+    ReactiveRedisTemplate<String, Object> redisTemplate;
+
     @Autowired
     private UserRedisService userRedisService;
 
@@ -340,5 +346,18 @@ public class ProjectOperatorTest
                    .flatMap((uuid) ->
                        this.userRedisService.deleteUser(uuid))
             .blockLast();
+    }
+
+    /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
+    @Order(12)
+    @Test
+    public void redisFlushAllAsync()
+    {
+        this.redisTemplate.getConnectionFactory()
+            .getReactiveConnection()
+            .serverCommands()
+            .flushAll(RedisServerCommands.FlushOption.ASYNC)
+            .doOnSuccess(System.out::println)
+            .block();
     }
 }
