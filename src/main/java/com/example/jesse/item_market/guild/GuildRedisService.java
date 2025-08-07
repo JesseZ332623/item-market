@@ -3,6 +3,8 @@ package com.example.jesse.item_market.guild;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 /** 公会 Redis 操作接口类。*/
 public interface GuildRedisService
 {
@@ -45,7 +47,7 @@ public interface GuildRedisService
      *
      * @return 发布布公会成员中所有以 prefix 开头的成员名的 Flux
      */
-    Flux<String> fetchAutoCompleteMember(String guildName, String prefix);
+    Mono<List<String>> fetchAutoCompleteMember(String guildName, String prefix);
 
     /**
      * 公会成员之间互发消息（可能用到 Redis 的 PUB 和 SUB），后续再研究。
