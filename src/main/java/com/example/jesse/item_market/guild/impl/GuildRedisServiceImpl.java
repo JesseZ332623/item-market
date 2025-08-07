@@ -1,29 +1,20 @@
 package com.example.jesse.item_market.guild.impl;
 
 import com.example.jesse.item_market.guild.GuildRedisService;
-import com.example.jesse.item_market.guild.dto.FetchAutoCompleteMemberResult;
 import com.example.jesse.item_market.guild.utils.PrefixRange;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
-import com.example.jesse.item_market.utils.exception.LuaScriptOperatorFailed;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.GUILD_OPERATOR;
@@ -283,72 +274,36 @@ public class GuildRedisServiceImpl implements GuildRedisService
      * @return 发布布公会成员中所有以 prefix 开头的成员名的 Flux
      */
     @Override
-    public Flux<String>
+    public Mono<List<String>>
     fetchAutoCompleteMember(@NotNull String guildName, String prefix)
     {
         return
         PrefixRange.create(prefix)
-            .flatMapMany((prefixRange) -> {
+            .flatMap((prefixRange) -> {
+                System.out.printf(
+                    "Names with <%s> prefix from guild [%s]%n",
+                    prefix, guildName
+                );
+
+                System.out.printf(
+                    "Range of min: %s, Range of max: %s%n",
+                    prefixRange.getMin(), prefixRange.getMax()
+                );
+
                 final String guildKey
                     = getGuildKey(guildName.trim().replace(' ', '-'));
 
-                final String predecessor
-                    = prefixRange.getPredecessor();
-
-                final String successor
-                    = prefixRange.getSuccessor();
-
-                /*
-                 * 这个脚本并不返回 LuaOperatorResult 类型，
-                 * 而是一个 List<Sting>，所以这里的脚本要手动构建。
-                 *
-                 * 从此处暴露一个重大问题：
-                 * 以前为了方便测试，Lua 脚本使用的是本机的绝对路径，
-                 * 但是在生产环境所有的脚本会被打包到 JAR 的指定路径中取，
-                 * 因此使用绝对路径是行不通的，
-                 * 等到后续需要开发前端页面时，Lua 脚本的读取模块就需要重构了。
-                 */
-                Path scriptPath
-                    = luaScriptReader
-                        .getFullScriptPath(
-                            GUILD_OPERATOR,
-                            "fetchAutoCompleteMember.lua"
-                        );
-
-                RedisScript<FetchAutoCompleteMemberResult> script;
-
-                try
-                {
-                    script = RedisScript.of(
-                        Files.readString(scriptPath, StandardCharsets.UTF_8),
-                        FetchAutoCompleteMemberResult.class
-                    );
-                }
-                catch (IOException e)
-                {
-                    throw new LuaScriptOperatorFailed(
-                        "Lua script: fetchAutoCompleteMember.lua not found!",
-                        null
-                    );
-                }
-
-                return
-                this.redisTemplate
-                    .execute(script, List.of(guildKey), predecessor, successor)
-                    .timeout(Duration.ofSeconds(5L))
-                    .next()
-                    .flatMapMany((members) ->
-                        Flux.fromIterable(
-                            members.getMatchedMembers()
-                                   .stream()
-                                   .filter((member) -> !member.contains("{"))
-                                   .toList()
-                        )
-                    );
+                return this.redisTemplate
+                           .opsForZSet()
+                           .rangeByLex(
+                               guildKey,
+                               Range.rightOpen(prefixRange.getMin(), prefixRange.getMax()))
+                           .map(String::valueOf)
+                           .collectList()
+                           .timeout(Duration.ofSeconds(3L));
             })
-            .onErrorResume(
-                (excption) ->
-                    redisGenericErrorHandel(excption, null)
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, Collections.emptyList())
             );
     }
 
@@ -364,7 +319,11 @@ public class GuildRedisServiceImpl implements GuildRedisService
      */
     @Override
     public Mono<Void>
-    sendMessageBetweenMembers(String guildName, String sender, String receiver, String message) {
+    sendMessageBetweenMembers(
+        String guildName,
+        String sender, String receiver,
+        String message)
+    {
         return null;
     }
 
@@ -378,7 +337,8 @@ public class GuildRedisServiceImpl implements GuildRedisService
      */
     @Override
     public Mono<Void>
-    deleteGuild(String uuid, String guildName) {
+    deleteGuild(String uuid, String guildName)
+    {
         return null;
     }
 }
