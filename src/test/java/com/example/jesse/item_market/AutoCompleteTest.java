@@ -10,20 +10,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.connection.RedisServerCommands;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import reactor.core.publisher.Flux;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
-/** 自动补全功能测试。*/
+/** Auto Complete 功能测试。*/
 @Slf4j
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class AutoCompleteTest
 {
+    @Autowired
+    private
+    ReactiveRedisTemplate<String, Object> redisTemplate;
+
     @Autowired
     private
     UserRedisService userRedisService;
@@ -62,6 +67,21 @@ public class AutoCompleteTest
             "Council of the Black Harvest",
             "The Dark Brotherhood", "Gank and Spank"
         );
+
+    @SafeVarargs
+    public final List<String>
+    mergeAndShuffleList(List<String> ...lists)
+    {
+        List<String> mergedList
+            = Stream.of(lists)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toCollection(ArrayList::new));
+
+        Collections.shuffle(mergedList);
+        Collections.shuffle(mergedList);
+
+        return mergedList;
+    }
 
     private List<String>
     createUsersFromList(@NotNull List<String> users)
@@ -126,10 +146,8 @@ public class AutoCompleteTest
             .flatMap((entry) ->
                 this.guildRedisService
                     .fetchAutoCompleteMember(entry.getKey(), entry.getValue())
-                    .collectList()
-                    .doOnSuccess(System.out::println)
-
-            ).blockLast();
+                    .doOnSuccess(System.out::println))
+            .blockLast();
     }
 
     @Order(1)
@@ -155,23 +173,47 @@ public class AutoCompleteTest
             ), TEST_GUILD_NAME
         );
 
+        /* 合并各个用户列表除第一个用户之外的其他所有用户为一个新不变列表，然后打乱。*/
+        List<String> mergedNames
+            = this.mergeAndShuffleList(
+                uuidsOfJePrefix.stream().skip(1L).toList(),
+                uuidsOfMiPrefix.stream().skip(1L).toList(),
+                uuidOfAltPrefix.stream().skip(1L).toList()
+            );
+
+        int namesAvgLen = mergedNames.size() / 3;
+
+        List<String> partA = mergedNames.subList(0, namesAvgLen);
+        List<String> partB = mergedNames.subList(namesAvgLen, namesAvgLen * 2);
+        List<String> partC = mergedNames.subList(namesAvgLen * 2, mergedNames.size());
+
         // 3. 令各个用户列表除第一个用户之外的其他所有用户，加入对应的公会
         joinGuildFromListExpectHead(
-            uuidsOfJePrefix.stream().skip(1L).toList(),
-            TEST_GUILD_NAME.getFirst()
+            partA, TEST_GUILD_NAME.getFirst()
         );
 
         joinGuildFromListExpectHead(
-            uuidsOfMiPrefix.stream().skip(1L).toList(),
-            TEST_GUILD_NAME.get(1)
+            partB, TEST_GUILD_NAME.get(1)
         );
 
         joinGuildFromListExpectHead(
-            uuidOfAltPrefix.stream().skip(1L).toList(),
-            TEST_GUILD_NAME.get(2)
+            partC, TEST_GUILD_NAME.get(2)
         );
 
         // 4. 最关键的测试环节
         testFetchAutoCompleteMemberHandle(TEST_GUILD_NAME, TEST_PREFIX);
+    }
+
+    /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
+    @Order(2)
+    @Test
+    public void redisFlushAllAsync()
+    {
+        this.redisTemplate.getConnectionFactory()
+            .getReactiveConnection()
+            .serverCommands()
+            .flushAll(RedisServerCommands.FlushOption.ASYNC)
+            .doOnSuccess(System.out::println)
+            .block();
     }
 }
