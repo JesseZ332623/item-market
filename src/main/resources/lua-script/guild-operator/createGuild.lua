@@ -79,7 +79,7 @@ redis.call(
 redis.call(
     'HSET', userKey,
     userGuildField, formatGuildName,
-    userGuildRoleField, "Leader"
+    userGuildRoleField, '"Leader"'
 )
 redis.call(
     'XADD',
