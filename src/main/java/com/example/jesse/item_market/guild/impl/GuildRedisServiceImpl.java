@@ -9,7 +9,9 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -39,6 +41,54 @@ public class GuildRedisServiceImpl implements GuildRedisService
     @Autowired
     private
     ReactiveRedisTemplate<String, LuaOperatorResult> redisScriptTemplate;
+
+    /** 按公会名搜索所有公会成员的 UUID。*/
+    @Override
+    public Flux<String>
+    findAllMembersByGuildName(@NotNull String guildName)
+    {
+        final String guildNameSetKey = getGuildNameSetKey();
+        final String formatGuildName = guildName.trim().replace(' ', '-');
+        final String usersPattern    = "users:[0-9]*";
+
+        Mono<Boolean> checkGuildNameExists
+            = this.redisTemplate
+                  .opsForSet()
+                  .isMember(guildNameSetKey, formatGuildName);
+
+        Flux<String> findAllGuildMembers
+            = this.redisTemplate
+                  .scan(
+                      ScanOptions.scanOptions()
+                          .match(usersPattern)
+                          .build())
+                  .flatMap((matchedUsers) ->
+                      this.redisTemplate
+                          .opsForHash()
+                          .get(matchedUsers, "\"guild\"")
+                          .map((res) -> (String) res)
+                          .filter((queryGuildName) ->
+                              queryGuildName.equals(formatGuildName))
+                          .thenReturn(matchedUsers.split(":")[1])
+                  );
+
+        return checkGuildNameExists
+            .flatMapMany(exists -> {
+                if (!exists)
+                {
+                    return Flux.error(
+                        new IllegalArgumentException(
+                            format("Guild name: %s not exist!", formatGuildName)
+                        )
+                    );
+                }
+
+                return findAllGuildMembers;
+            })
+            .timeout(Duration.ofSeconds(3L))
+            .onErrorResume(exception ->
+                redisGenericErrorHandel(exception, null));
+    }
 
     /**
      * 用户创建公会，并成为这个公会的 Leader。
@@ -134,9 +184,11 @@ public class GuildRedisServiceImpl implements GuildRedisService
         String formatGuildName
             = guildName.trim().replace(' ', '-');
 
-        final String guildKey    = getGuildKey(formatGuildName);
-        final String guildLogKey = getGuildLogKey();
-        final String userKey     = getUserKey(uuid);
+        final String guildKey        = getGuildKey(formatGuildName);
+        final String guildLogKey     = getGuildLogKey();
+        final String guildNameSetKey = getGuildNameSetKey();
+        final String userKey         = getUserKey(uuid);
+        final int    MAX_MEMBERS     = 500;
 
         return
         this.luaScriptReader
@@ -145,9 +197,9 @@ public class GuildRedisServiceImpl implements GuildRedisService
                 this.redisScriptTemplate
                     .execute(
                         script,
-                        List.of(guildKey, guildLogKey, userKey),
+                        List.of(guildKey, guildLogKey, guildNameSetKey, userKey),
                         uuid, formatGuildName,
-                        USER_GUILD_FIELD, USER_GUILD_ROLE_FIELD)
+                        USER_GUILD_FIELD, USER_GUILD_ROLE_FIELD, MAX_MEMBERS)
                     .timeout(Duration.ofSeconds(5L))
                     .next()
                     .flatMap((result) ->
@@ -160,10 +212,27 @@ public class GuildRedisServiceImpl implements GuildRedisService
                                     )
                                 );
 
+                            case "GUILD_NOT_FOUND" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("Guild: %s not exist!", formatGuildName)
+                                    )
+                                );
+
                             case "USER_NAME_NOT_FOUND" ->
                                 Mono.error(
                                     new IllegalArgumentException(
                                         format("Query user name by: %s not found!", uuid)
+                                    )
+                                );
+
+                            case "GUILD_IS_FULL" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format(
+                                            "Guild: %s is full! (Max mamber = %d)",
+                                            guildName, MAX_MEMBERS
+                                        )
                                     )
                                 );
 
@@ -328,7 +397,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
     }
 
     /**
-     * Leader 删除公会，[并向所有公会成员发送解散的消息](这一步后续再研究)。
+     * Leader 解散公会，[并向所有公会成员发送解散的消息](这一步后续再研究)。
      *
      * @param uuid      公会创始人 ID
      * @param guildName 公会名
