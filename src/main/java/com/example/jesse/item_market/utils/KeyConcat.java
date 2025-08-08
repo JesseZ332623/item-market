@@ -44,6 +44,9 @@ final public class KeyConcat
     /** 公会名数据键。*/
     public static final String GUILD_NAME_SET_KEY = "guild:guild-name:";
 
+    /** Redis 锁键前缀。*/
+    public static final String REDIS_LOCK_PREFIX = "lock:";
+
     /** 组合用户数据键。（示例：users:114940680399943670）*/
     @Contract(pure = true)
     public static @NotNull String
@@ -111,7 +114,13 @@ final public class KeyConcat
     public static @NotNull String
     getGuildLogKey() { return GUILD_PREFIX + "log"; }
 
+    /** 获取公会名集合日志键。*/
     @Contract(pure = true)
     public static @NotNull String
     getGuildNameSetLogKey() { return GUILD_NAME_SET_KEY + "log"; }
+
+    /** 组合 Redis 锁键。*/
+    @Contract(pure = true)
+    public static @NotNull String
+    getRedisLockKey(String keyName) { return REDIS_LOCK_PREFIX + keyName; }
 }
