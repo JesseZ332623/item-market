@@ -8,6 +8,9 @@ import java.util.List;
 /** 公会 Redis 操作接口类。*/
 public interface GuildRedisService
 {
+    /** 按公会名搜索所有公会成员的 UUID。*/
+    Flux<String> findAllMembersByGuildName(String guildName);
+
     /**
      * 用户创建公会，并成为这个公会的 Leader。
      *
@@ -66,7 +69,7 @@ public interface GuildRedisService
     );
 
     /**
-     * Leader 删除公会，并向所有公会成员发送解散的消息（发送消息的功能后续再研究）。
+     * Leader 解散公会，并向所有公会成员发送解散的消息（发送消息的功能后续再研究）。
      *
      * @param uuid      公会创始人 ID
      * @param guildName 公会名
