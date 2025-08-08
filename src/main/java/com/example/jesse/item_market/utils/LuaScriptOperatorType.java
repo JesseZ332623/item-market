@@ -7,7 +7,8 @@ public enum LuaScriptOperatorType
 {
     USER_OPERATOR("user-operator"),
     MARKET_OPERATOR("market-operator"),
-    GUILD_OPERATOR("guild-operator");
+    GUILD_OPERATOR("guild-operator"),
+    ACQUIRE_OPERATOR("lock-operator");
 
     @Getter
     final String typeName;
