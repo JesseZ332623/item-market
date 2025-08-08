@@ -11,16 +11,19 @@
         formatGuildName     公会名
         userGuildField      用户哈希的用户公会字段名
         userGuildRoleField  用户哈希的用户公会身份字段名
+        maxMembers          公会的最大成员数
 ]]
 
-local guildKey      = KEYS[1]
-local guildLogKey   = KEYS[2]
-local userKey       = KEYS[3]
+local guildKey        = KEYS[1]
+local guildLogKey     = KEYS[2]
+local guildNameSetKey = KEYS[3]
+local userKey         = KEYS[4]
 
 local uuid               = ARGV[1]
 local formatGuildName    = ARGV[2]
 local userGuildField     = ARGV[3]
 local userGuildRoleField = ARGV[4]
+local maxMembers         = ARGV[5]
 
 local timestamp = redis.call('TIME')[1]
 
@@ -37,13 +40,27 @@ then
     return '{"result": "ALREADY_JOINED"}'
 end
 
--- 查询用户名，会写入这个公会的有序列表中
+-- 检查要加入的公会是否存在
+if
+    redis.call('SISMEMBER', guildNameSetKey, formatGuildName) ~= 1
+then
+    return '{"result": "GUILD_NOT_FOUND"}'
+end
+
+-- 查询用户名，后面会写入这个公会的有序列表中
 local userName = redis.call('HGET', userKey, "\"name\"")
 
 if
     userName == false
 then
     return '{"result": "USER_NAME_NOT_FOUND"}'
+end
+
+-- 检查这个公会是否已经满员
+if
+    redis.call('ZCOUNT', guildKey, '-inf', '+inf') == maxMembers
+then
+    return '{"result": "GUILD_IS_FULL"}'
 end
 
 redis.call('ZADD', guildKey, 'NX', 0, userName)
@@ -60,7 +77,7 @@ redis.call(
 redis.call(
     'HSET', userKey,
     userGuildField, formatGuildName,
-    userGuildRoleField, "Member"
+    userGuildRoleField, '"Member"'
 )
 redis.call(
     'XADD',
