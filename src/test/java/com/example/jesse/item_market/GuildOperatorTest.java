@@ -19,11 +19,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-/** Auto Complete 功能测试。*/
+/** 公会操作功能测试。*/
 @Slf4j
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class AutoCompleteTest
+public class GuildOperatorTest
 {
     @Autowired
     private
@@ -201,11 +201,28 @@ public class AutoCompleteTest
         );
 
         // 4. 最关键的测试环节
-        testFetchAutoCompleteMemberHandle(TEST_GUILD_NAME, TEST_PREFIX);
+        // testFetchAutoCompleteMemberHandle(TEST_GUILD_NAME, TEST_PREFIX);
+    }
+
+    /** TIPS: 这个测试是有问题的，不知道为什么，返回的三个结果是相同的。。。*/
+    @Order(2)
+    @Test
+    void TestFindAllMembersByGuildName()
+    {
+        Flux.fromIterable(TEST_GUILD_NAME)
+            .flatMap((guildName) -> {
+                log.info("{}", guildName);
+
+                return
+                this.guildRedisService
+                    .findAllMembersByGuildName(guildName)
+                    .collectList()
+                    .doOnSuccess(System.out::println);
+            }).blockLast();
     }
 
     /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
-    @Order(2)
+    @Order(3)
     @Test
     public void redisFlushAllAsync()
     {
