@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
 import static com.example.jesse.item_market.utils.LimitRandomElement.getRandomLimit;
 import static com.example.jesse.item_market.utils.TestUtils.SELECT_AMOUNT;
 
-/** 项目 Redis 操作测试。*/
+/** 用户、市场 Redis 操作测试。*/
 @Slf4j
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
