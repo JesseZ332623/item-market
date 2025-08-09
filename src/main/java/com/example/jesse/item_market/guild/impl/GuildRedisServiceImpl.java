@@ -2,12 +2,15 @@ package com.example.jesse.item_market.guild.impl;
 
 import com.example.jesse.item_market.guild.GuildRedisService;
 import com.example.jesse.item_market.guild.utils.PrefixRange;
+import com.example.jesse.item_market.lock.RedisLock;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Range;
+import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
@@ -15,8 +18,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.GUILD_OPERATOR;
@@ -42,6 +47,9 @@ public class GuildRedisServiceImpl implements GuildRedisService
     private
     ReactiveRedisTemplate<String, LuaOperatorResult> redisScriptTemplate;
 
+    @Autowired
+    private RedisLock redisLock;
+
     /** 按公会名搜索所有公会成员的 UUID。*/
     @Override
     public Flux<String>
@@ -62,14 +70,14 @@ public class GuildRedisServiceImpl implements GuildRedisService
                       ScanOptions.scanOptions()
                           .match(usersPattern)
                           .build())
-                  .flatMap((matchedUsers) ->
+                  .flatMap((matchedUserKeys) ->
                       this.redisTemplate
                           .opsForHash()
-                          .get(matchedUsers, "\"guild\"")
+                          .get(matchedUserKeys, "\"guild\"")
                           .map((res) -> (String) res)
                           .filter((queryGuildName) ->
                               queryGuildName.equals(formatGuildName))
-                          .thenReturn(matchedUsers.split(":")[1])
+                          .map((ignore) -> matchedUserKeys.split(":")[1])
                   );
 
         return checkGuildNameExists
@@ -86,6 +94,27 @@ public class GuildRedisServiceImpl implements GuildRedisService
                 return findAllGuildMembers;
             })
             .timeout(Duration.ofSeconds(3L))
+            .onErrorResume(exception ->
+                redisGenericErrorHandel(exception, null));
+    }
+
+    /** 按公会名搜索该工会 Leader 的 uuid。*/
+    @Override
+    public Mono<String>
+    findLeaderIdByGuildName(@NotNull String guildName)
+    {
+        return
+        this.findAllMembersByGuildName(guildName)
+            .flatMap((memberId) -> 
+                this.redisTemplate
+                    .opsForHash()
+                    .get(getUserKey(memberId), "\"guild-role\"")
+                    .map(String::valueOf)
+                    .filter("Leader"::equals)
+                    .map((role) -> memberId))
+            .next()
+            .timeout(Duration.ofSeconds(3L))
+            .doOnSuccess(System.out::println)
             .onErrorResume(exception ->
                 redisGenericErrorHandel(exception, null));
     }
@@ -399,15 +428,134 @@ public class GuildRedisServiceImpl implements GuildRedisService
     /**
      * Leader 解散公会，[并向所有公会成员发送解散的消息](这一步后续再研究)。
      *
-     * @param uuid      公会创始人 ID
-     * @param guildName 公会名
+     * @param uuid  公会创始人 ID
      *
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
     @Override
     public Mono<Void>
-    deleteGuild(String uuid, String guildName)
+    deleteGuild(String uuid)
     {
-        return null;
+        return
+        this.redisLock.withLock(
+            "DeleteGuild_Lock",
+            10L, 10L,
+            (identifier) -> {
+                log.info("Trying to delete guild for user: {}", uuid);
+                log.info("Destribute lock identifier of DeleteGuild_Lock: {}", identifier);
+
+                final String guildLogKey        = getGuildLogKey();
+                final String guildNameSetKey    = getGuildNameSetKey();
+                final String guildNameSetLogKey = getGuildNameSetLogKey();
+                final String leaderUserKey      = getUserKey(uuid);
+
+                Mono<Boolean> isLeader
+                    = this.redisTemplate
+                          .opsForHash()
+                          .get(leaderUserKey, "\"guild-role\"")
+                          .map(String::valueOf)
+                          .map("Leader"::equals);
+
+                Mono<String> getGuildName
+                    = this.redisTemplate
+                          .opsForHash()
+                          .get(leaderUserKey, "\"guild\"")
+                          .map(String::valueOf)
+                          .cache(Duration.ofSeconds(15L));
+
+                Mono<Void> deleteGuildNameFromSet
+                 = getGuildName
+                    .flatMap((guildName) ->
+                        this.redisTemplate
+                            .opsForSet()
+                            .remove(guildNameSetKey, guildName))
+                    .then();
+
+                Mono<Void> deleteGuild
+                    = getGuildName
+                        .flatMap((guildName) ->
+                            this.redisTemplate
+                                .opsForZSet()
+                                .delete(getGuildKey(guildName)))
+                        .then();
+
+                Mono<Void> resetGuildInfoForMembers
+                    = getGuildName
+                        .flatMapMany(this::findAllMembersByGuildName)
+                        .flatMap((memberId) ->
+                            this.redisTemplate.opsForHash()
+                                .putAll(
+                                    getUserKey(memberId),
+                                    Map.of(
+                                        "\"guild\"", "---",
+                                        "\"guild-role\"", "---"
+                                    )
+                                ))
+                    .then();
+
+                Mono<Void> recordGuildNameDeleteLog
+                    = getGuildName.flatMap((guildName) -> {
+                        final Map<String, String> deleteGuildNameLogInfo
+                            = Map.of(
+                            "event", "REMOVE_GUILD_NAME",
+                            "guild-name", guildName,
+                            "timestamp", String.valueOf(Instant.now().getEpochSecond())
+                        );
+
+                    MapRecord<String, String, String> record
+                           = StreamRecords.newRecord()
+                             .ofStrings(deleteGuildNameLogInfo)
+                             .withStreamKey(guildNameSetLogKey);
+
+                    return this.redisTemplate
+                               .opsForStream()
+                               .add(record).then();
+                });
+
+                Mono<Void> recordGuildDeleteLog
+                    = getGuildName.flatMap((guildName) -> {
+                        final Map<String, String> deleteGuildLogInfo
+                            = Map.of(
+                            "event", "DELETE_GUILD",
+                            "uuid", uuid,
+                            "guild-name", guildName,
+                            "timestamp", String.valueOf(Instant.now().getEpochSecond())
+                        );
+
+                        MapRecord<String, String, String> record
+                            = StreamRecords.newRecord()
+                                .ofStrings(deleteGuildLogInfo)
+                                .withStreamKey(guildLogKey);
+
+                        return this.redisTemplate
+                                   .opsForStream()
+                                   .add(record).then();
+                    });
+
+                return
+                isLeader.flatMap((is) -> {
+                    if (!is) {
+                        return Mono.error(
+                            new IllegalArgumentException(
+                                format("User: %s not a leader of guild!", uuid)
+                            )
+                        );
+                    }
+                    return
+                        resetGuildInfoForMembers
+                        .then(
+                            Mono.when(
+                                deleteGuildNameFromSet,
+                                deleteGuild,
+                                recordGuildNameDeleteLog,
+                                recordGuildDeleteLog
+                            )
+                        );
+                })
+                .timeout(Duration.ofSeconds(30L))
+                .onErrorResume((exception) ->
+                    redisGenericErrorHandel(exception, null));
+            }
+        );
     }
 }
