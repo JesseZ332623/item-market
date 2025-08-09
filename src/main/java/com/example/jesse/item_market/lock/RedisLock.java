@@ -26,6 +26,6 @@ public interface RedisLock
     withLock(
         String lockName,
         long acquireTimeout, long lockTimeout,
-        Function<RedisLockImpl, Mono<T>> action
+        Function<String, Mono<T>> action
     );
 }
