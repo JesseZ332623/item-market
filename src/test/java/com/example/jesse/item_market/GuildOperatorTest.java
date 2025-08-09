@@ -204,7 +204,6 @@ public class GuildOperatorTest
         // testFetchAutoCompleteMemberHandle(TEST_GUILD_NAME, TEST_PREFIX);
     }
 
-    /** TIPS: 这个测试是有问题的，不知道为什么，返回的三个结果是相同的。。。*/
     @Order(2)
     @Test
     void TestFindAllMembersByGuildName()
@@ -221,8 +220,22 @@ public class GuildOperatorTest
             }).blockLast();
     }
 
-    /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
+    /** 删除公会的操作尝试使用了 Redis 分布式锁，所以需要单独提出来测试。 */
     @Order(3)
+    @Test
+    void TestDeleteGuild()
+    {
+        Flux.fromIterable(TEST_GUILD_NAME)
+            .concatMap((guildName) ->
+                this.guildRedisService
+                    .findLeaderIdByGuildName(guildName)
+                    .flatMap((leaderId) ->
+                        this.guildRedisService.deleteGuild(leaderId))
+            ).blockLast();
+    }
+
+    /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
+    @Order(4)
     @Test
     public void redisFlushAllAsync()
     {
