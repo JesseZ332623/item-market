@@ -11,6 +11,9 @@ public interface GuildRedisService
     /** 按公会名搜索所有公会成员的 UUID。*/
     Flux<String> findAllMembersByGuildName(String guildName);
 
+    /** 按公会名搜索该工会 Leader 的 uuid。*/
+    Mono<String> findLeaderIdByGuildName(String guildName);
+
     /**
      * 用户创建公会，并成为这个公会的 Leader。
      *
@@ -71,10 +74,9 @@ public interface GuildRedisService
     /**
      * Leader 解散公会，并向所有公会成员发送解散的消息（发送消息的功能后续再研究）。
      *
-     * @param uuid      公会创始人 ID
-     * @param guildName 公会名
+     * @param uuid  公会创始人 ID
      *
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
-    Mono<Void> deleteGuild(String uuid, String guildName);
+    Mono<Void> deleteGuild(String uuid);
 }
