@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -40,12 +39,6 @@ public class RedisLockImpl implements RedisLock
     private
     ReactiveRedisTemplate<String, LuaOperatorResult> redisScriptTemplate;
 
-    /** Redis Lock 实例的唯一标识符，外部不可访问。*/
-    private String identifier = null;
-
-    /** Redis Lock 实例的锁名，外部不可访问。*/
-    private String lockName = null;
-
     /**
      * 尝试获取一个锁。
      *
@@ -55,16 +48,12 @@ public class RedisLockImpl implements RedisLock
      *
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
-    private @NotNull Mono<Void>
+    private @NotNull Mono<String>
     acquireLockTimeout(
-        String lockName,
+        String lockName, String identifier,
         long acquireTimeout, long lockTimeout)
     {
-        final String identifier
-            = UUID.randomUUID().toString();
-
-        final String lockKeyName
-            = getRedisLockKey(lockName);
+        final String lockKeyName = getRedisLockKey(lockName);
 
         return
         this.scriptReader
@@ -90,21 +79,21 @@ public class RedisLockImpl implements RedisLock
                                 );
 
                             case "SUCCESS" -> {
-                                this.identifier = identifier;
-                                this.lockName   = lockName;
-                                yield Mono.empty();
+                                log.info("Lock obtain success!");
+                                yield Mono.just(identifier);
                             }
 
                             case null, default ->
-                                throw new IllegalStateException(
-                                    "Unexpected value: " + result.getResult()
+                                Mono.error(
+                                    new IllegalStateException(
+                                        "Unexpected value: " + result.getResult()
+                                    )
                                 );
                         }
                     )
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
-            .then();
+                redisGenericErrorHandel(exception, null));
     }
 
     /**
@@ -113,51 +102,45 @@ public class RedisLockImpl implements RedisLock
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
     private @NotNull Mono<Void>
-    releaseLock()
+    releaseLock(String lockName, String identifier)
     {
+        final String lockKeyName = getRedisLockKey(lockName);
+
         return
-        Mono.defer(() -> {
-            /* 先获取锁，才能释放锁。*/
-            Objects.requireNonNull(
-                this.identifier, "Could not obtain lock!"
-            );
-
-            final String lockKeyName
-                = getRedisLockKey(this.lockName);
-
-            return
-            this.scriptReader
-                .fromFile(ACQUIRE_OPERATOR, "releaseLock.lua")
-                .flatMap((script) ->
-                    this.redisScriptTemplate
-                        .execute(script, List.of(lockKeyName), this.identifier)
-                        .next()
-                        .flatMap((result) ->
-                            switch (result.getResult())
-                            {
-                                case "CONCURRENT_DELETE" -> {
-                                    log.warn("Concurrent delete happend!");
-                                    yield Mono.empty();
-                                }
-
-                                case "LOCK_OWNED_BY_OTHERS" -> {
-                                    log.error("Try to delete others lock!");
-                                    yield Mono.empty();
-                                }
-
-                                case "SUCCESS" -> Mono.empty();
-
-                                case null, default ->
-                                    throw new IllegalStateException(
-                                        "Unexpected value: " + result.getResult()
-                                    );
+        this.scriptReader
+            .fromFile(ACQUIRE_OPERATOR, "releaseLock.lua")
+            .flatMap((script) ->
+                this.redisScriptTemplate
+                    .execute(script, List.of(lockKeyName), identifier)
+                    .next()
+                    .flatMap((result) ->
+                        switch (result.getResult())
+                        {
+                            case "CONCURRENT_DELETE" -> {
+                                log.warn("Concurrent delete happend!");
+                                yield Mono.empty();
                             }
-                        )
+
+                            case "LOCK_OWNED_BY_OTHERS" -> {
+                                log.error("Try to delete others lock!");
+                                yield Mono.empty();
+                            }
+
+                            case "SUCCESS" -> {
+                                log.info("Lock release success!");
+                                yield Mono.empty();
+                            }
+
+                            case null, default ->
+                                Mono.error(new IllegalStateException(
+                                    "Unexpected value: " + result.getResult()
+                                    )
+                            );
+                        })
                 )
-                .onErrorResume((exception) ->
-                    redisGenericErrorHandel(exception, null))
-                .then();
-        });
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .then();
     }
 
     /**
@@ -179,29 +162,24 @@ public class RedisLockImpl implements RedisLock
     withLock(
         String lockName,
         long acquireTimeout, long lockTimeout,
-        Function<RedisLockImpl, Mono<T>> action)
+        Function<String, Mono<T>> action)
     {
         /* 注意外部再用 defer() 包一层，确保每次调用都创建新的响应式流。*/
         return
         Mono.defer(() -> {
-            /*
-             * 本方法中 Mono.usingWhen() 的工作流程是这样的：
-             *
-             * 1. 调用 this.acquireLockTimeout() ，
-             *    成功后返回整个锁实例传递至管道下游
-             *
-             * 2. 上锁后执行业务逻辑
-             *
-             * 3. 业务逻辑执行解释后调用 releaseLock() 释放锁（不论成败）
-             *
-             * P.S. 即便业务逻辑执行过程中抛出异常，也能保证锁的释放
-             */
+            String identifier = UUID.randomUUID().toString();
+
             return
             Mono.usingWhen(
-                this.acquireLockTimeout(lockName, acquireTimeout, lockTimeout)
-                    .thenReturn(this),
+                this.acquireLockTimeout(lockName, identifier, acquireTimeout, lockTimeout)
+                    .map(acquiredId -> acquiredId),
                 action,
-                RedisLockImpl::releaseLock
+                (acquiredId) -> {
+                    log.info("Releasing lock with identifier: {}", acquiredId);
+
+                    return
+                    this.releaseLock(lockName, acquiredId);
+                }
             );
         });
     }
