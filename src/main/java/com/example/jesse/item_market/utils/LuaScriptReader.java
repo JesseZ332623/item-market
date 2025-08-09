@@ -83,6 +83,15 @@ final public class LuaScriptReader
                     .normalize();
             }
 
+            case ACQUIRE_OPERATOR ->
+            {
+                return
+                Path.of(luaScriptPath)
+                    .resolve(ACQUIRE_OPERATOR.getTypeName())
+                    .resolve(luaScriptName)
+                    .normalize();
+            }
+
             case null, default ->
                 throw new LuaScriptOperatorFailed(
                     "Invalid lua script path!", null
