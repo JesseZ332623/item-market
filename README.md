@@ -12,7 +12,7 @@
 
 ---
 
-### 项目 Redis key 详见
+### 项目 Redis key 详见：
 
 [Redis key](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/utils/KeyConcat.java)
 
@@ -38,7 +38,11 @@
 
 ### 项目所有操作测试类详见：
 
-[Project operator test](https://github.com/JesseZ332623/item-market/blob/main/src/test/java/com/example/jesse/item_market/ProjectOperatorTest.java)
+[Project operator test](https://github.com/JesseZ332623/item-market/blob/main/src/test/java/com/example/jesse/item_market)
+
+### 响应式 Redis 分布式锁实现详见：
+
+[Reactive Distributed Lock](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/lock/impl/RedisLockImpl.java)
 
 ### 项目 Lua 脚本详见：
 
@@ -47,6 +51,8 @@
 [Market Script](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/market-operator)
 
 [Guild Script](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/guild-operator)
+
+[Distributed Lock Script](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/lock-operator)
 
 ---
 
