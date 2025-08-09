@@ -16,12 +16,17 @@ local identifier  = ARGV[1]
 local currentIdentifier
     = redis.call('GET', lockKeyName)
 
+redis.log(
+    redis.LOG_NOTICE,
+    "currentIdentifier = " ..currentIdentifier.. " identifier = " ..identifier
+)
+
 -- 比对一下是不是自己的锁
 if
     currentIdentifier == identifier
 then
     --  删除锁
-    local delRes = redis.call("DEL", currentIdentifier)
+    local delRes = redis.call("DEL", lockKeyName)
 
     if
         delRes == 1
@@ -37,5 +42,5 @@ then
     end
 end
 
--- 如果是别人的锁，直接返回（虽然在我的实现中这不可能发生）
+-- 如果是别人的锁，直接返回
 return '{"result" : "LOCK_OWNED_BY_OTHERS"}'
