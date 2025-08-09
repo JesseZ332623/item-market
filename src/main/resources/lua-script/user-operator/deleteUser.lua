@@ -98,6 +98,27 @@ redis.call(
     'timestamp', timestamp
 )
 
+-- 若用户有加入公会且不是公会的 Leader 的话，要离开公会
+local guildName = redis.call('HGET', userKey, "\"guild\"")
+local guildRole = redis.call('HGET', userKey, "\"guild-role\"")
+
+if
+    guildName ~= nil and guildRole ~= "\"Leader\""
+then
+    local guildKey    = 'guild:' ..guildName
+    local guildLogKey = 'guild:log'
+
+    redis.call('ZREM', guildKey, userName)
+    redis.call(
+        'XADD',
+        guildLogKey, '*',
+        'event', 'LEAVE_GUILD',
+        'uuid', uuid,
+        'guild-name', formatGuildName,
+        'timestamp', timestamp
+    )
+end
+
 -- 最后删除用户数据，并添加审计信息
 redis.call('DEL', userKey)
 redis.call(
