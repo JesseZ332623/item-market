@@ -541,8 +541,9 @@ public class GuildRedisServiceImpl implements GuildRedisService
                             )
                         );
                     }
+
                     return
-                        resetGuildInfoForMembers
+                    resetGuildInfoForMembers
                         .then(
                             Mono.when(
                                 deleteGuildNameFromSet,
