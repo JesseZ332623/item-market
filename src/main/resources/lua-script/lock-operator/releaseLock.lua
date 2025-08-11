@@ -16,10 +16,10 @@ local identifier  = ARGV[1]
 local currentIdentifier
     = redis.call('GET', lockKeyName)
 
-redis.log(
-    redis.LOG_NOTICE,
-    "currentIdentifier = " ..currentIdentifier.. " identifier = " ..identifier
-)
+-- redis.log(
+--     redis.LOG_NOTICE,
+--     "currentIdentifier = " ..currentIdentifier.. " identifier = " ..identifier
+-- )
 
 -- 比对一下是不是自己的锁
 if
