@@ -1,20 +1,20 @@
 package com.example.jesse.item_market;
 
+import com.example.jesse.item_market.dto.UserLogDTO;
 import com.example.jesse.item_market.guild.GuildRedisService;
 import com.example.jesse.item_market.user.UserRedisService;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import reactor.core.publisher.Flux;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -28,6 +28,10 @@ public class GuildOperatorTest
     @Autowired
     private
     ReactiveRedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private
+    ReactiveRedisTemplate<String, String> stringRedisTemplate;
 
     @Autowired
     private
@@ -234,8 +238,56 @@ public class GuildOperatorTest
             ).blockLast();
     }
 
-    /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
+    private String
+    trimStringHandle(@NotNull String string)
+    {
+        return
+        string.contains("\"")
+            ? string.replace("\"", "").trim()
+            : string;
+    }
+
+    /** 测试 Redis Stream 类型的读取。*/
     @Order(4)
+    @Test
+    public void TestLogStreamRead()
+    {
+        final String userLogKey = "users:log";
+
+        Function<String, String> trimString
+            = (str) ->
+                str.contains("\"")
+                    ? str.replace("\"", "").trim()
+                    : str;
+
+        List<UserLogDTO> userOperatorLogs
+            = this.stringRedisTemplate
+            .opsForStream()
+            .range(userLogKey, Range.open("-", "+"))
+            .collectList()
+            .map((records) ->
+                records.stream()
+                    .map((record) -> {
+                        String recordId               = record.getId().getValue();
+                        Map<Object, Object> recordVal = record.getValue();
+
+                        return
+                        new UserLogDTO()
+                            .setRecordId(recordId)
+                            .setEvent(trimStringHandle((String) recordVal.get("event")))
+                            .setUuid(trimStringHandle((String) recordVal.get("uuid")))
+                            .setUserName(trimStringHandle((String) recordVal.get("user-name")))
+                            .setUserFunds(trimStringHandle((String) recordVal.get("user-funds")))
+                            .setTimeStamp(trimStringHandle(String.valueOf(recordVal.get("timestamp"))));
+                    }).toList()
+            ).block();
+
+        Assertions.assertNotNull(userOperatorLogs);
+        userOperatorLogs.forEach(System.out::println);
+    }
+
+    /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
+    @Order(5)
     @Test
     public void redisFlushAllAsync()
     {
