@@ -20,7 +20,7 @@ import java.util.function.Function;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.KeyConcat.getRedisLockKey;
-import static com.example.jesse.item_market.utils.LuaScriptOperatorType.ACQUIRE_OPERATOR;
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.LOCK_OPERATOR;
 import static java.lang.String.format;
 
 /** Redis 分布式锁实现类。*/
@@ -50,14 +50,14 @@ public class RedisLockImpl implements RedisLock
      */
     private @NotNull Mono<String>
     acquireLockTimeout(
-        String lockName, String identifier,
-        long acquireTimeout, long lockTimeout)
+        String lockName, long acquireTimeout, long lockTimeout)
     {
         final String lockKeyName = getRedisLockKey(lockName);
+        final String identifier  = UUID.randomUUID().toString();
 
         return
         this.scriptReader
-            .fromFile(ACQUIRE_OPERATOR, "acquireLockTimeout.lua")
+            .fromFile(LOCK_OPERATOR, "acquireLockTimeout.lua")
             .flatMap((script) ->
                 this.redisScriptTemplate
                     .execute(
@@ -108,7 +108,7 @@ public class RedisLockImpl implements RedisLock
 
         return
         this.scriptReader
-            .fromFile(ACQUIRE_OPERATOR, "releaseLock.lua")
+            .fromFile(LOCK_OPERATOR, "releaseLock.lua")
             .flatMap((script) ->
                 this.redisScriptTemplate
                     .execute(script, List.of(lockKeyName), identifier)
@@ -166,12 +166,9 @@ public class RedisLockImpl implements RedisLock
     {
         /* 注意外部再用 defer() 包一层，确保每次调用都创建新的响应式流。*/
         return
-        Mono.defer(() -> {
-            String identifier = UUID.randomUUID().toString();
-
-            return
+        Mono.defer(() ->
             Mono.usingWhen(
-                this.acquireLockTimeout(lockName, identifier, acquireTimeout, lockTimeout)
+                this.acquireLockTimeout(lockName, acquireTimeout, lockTimeout)
                     .map(acquiredId -> acquiredId),
                 action,
                 (acquiredId) -> {
@@ -180,7 +177,7 @@ public class RedisLockImpl implements RedisLock
                     return
                     this.releaseLock(lockName, acquiredId);
                 }
-            );
-        });
+            )
+        );
     }
 }
