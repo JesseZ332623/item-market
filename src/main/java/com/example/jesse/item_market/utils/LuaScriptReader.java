@@ -43,7 +43,7 @@ final public class LuaScriptReader
     public @NotNull Path
     getFullScriptPath(
         @NotNull LuaScriptOperatorType operatorType,
-        String luaScriptName
+        @NotNull String luaScriptName
     )
     {
         /* 对于从 JAR 中的相对路径获取资源的情况下，这个方法不可用。*/
@@ -54,49 +54,10 @@ final public class LuaScriptReader
             );
         }
 
-        switch (operatorType)
-        {
-            case USER_OPERATOR ->
-            {
-                return
-                Path.of(luaScriptPath)
-                    .resolve(USER_OPERATOR.getTypeName())
-                    .resolve(luaScriptName)
-                    .normalize();
-            }
-
-            case MARKET_OPERATOR ->
-            {
-                return
-                Path.of(luaScriptPath)
-                    .resolve(MARKET_OPERATOR.getTypeName())
-                    .resolve(luaScriptName)
-                    .normalize();
-            }
-
-            case GUILD_OPERATOR ->
-            {
-                return
-                Path.of(luaScriptPath)
-                    .resolve(GUILD_OPERATOR.getTypeName())
-                    .resolve(luaScriptName)
-                    .normalize();
-            }
-
-            case ACQUIRE_OPERATOR ->
-            {
-                return
-                Path.of(luaScriptPath)
-                    .resolve(ACQUIRE_OPERATOR.getTypeName())
-                    .resolve(luaScriptName)
-                    .normalize();
-            }
-
-            case null, default ->
-                throw new LuaScriptOperatorFailed(
-                    "Invalid lua script path!", null
-                );
-        }
+        return Path.of(luaScriptPath)
+                   .resolve(operatorType.getTypeName())
+                   .resolve(luaScriptName)
+                   .normalize();
     }
 
     /** 从文件系统中加载脚本。（开发、测试时用）*/
