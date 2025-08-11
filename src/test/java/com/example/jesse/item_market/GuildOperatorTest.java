@@ -63,13 +63,28 @@ public class GuildOperatorTest
         );
 
     final private static
-    List<String> TEST_PREFIX = List.of("Je", "Mi", "Alt");
+    List<String> NAME_PREFIX_BY_Fe
+        = List.of("Felix", "Fenris", "Fenton", "Fergus", "Feron");
+
+    final private static
+    List<String> NAME_PREFIX_BY_Lsa
+        = List.of("Lsander", "Lsara", "Lsabella", "Lsandro", "Lsanna");
+
+    final private static
+    List<String> NAME_PREFIX_BY_Pe
+        = List.of("Percival", "Perseus", "Penelope", "Peregrine", "Petrus");
+
+    final private static
+    List<String> TEST_PREFIX
+        = List.of("Je", "Mi", "Alt", "Fe", "Lsa", "Pe");
 
     final private static
     List<String> TEST_GUILD_NAME
         = List.of(
             "Council of the Black Harvest",
-            "The Dark Brotherhood", "Gank and Spank"
+            "The Dark Brotherhood", "Gank and Spank",
+            "Ashenfall Vanguard", "Moonshadow Cartel",
+            "Bloodoath Sentinels"
         );
 
     @SafeVarargs
@@ -168,12 +183,24 @@ public class GuildOperatorTest
         List<String> uuidOfAltPrefix
             = createUsersFromList(NAME_PREFIX_BY_Alt);
 
+        List<String> uuidOfFePrefix
+            = createUsersFromList(NAME_PREFIX_BY_Fe);
+
+        List<String> uuidOfFeLsafix
+            = createUsersFromList(NAME_PREFIX_BY_Lsa);
+
+        List<String> uuidOfPePrefix
+            = createUsersFromList(NAME_PREFIX_BY_Pe);
+
         // 2. 令各个用户列表的第一个用户创建公会，并成为该公会的 Leader
         createGuildFromListHead(
             List.of(
                 uuidsOfJePrefix.getFirst(),
                 uuidsOfMiPrefix.getFirst(),
-                uuidOfAltPrefix.getFirst()
+                uuidOfAltPrefix.getFirst(),
+                uuidOfFePrefix.getFirst(),
+                uuidOfFeLsafix.getFirst(),
+                uuidOfPePrefix.getFirst()
             ), TEST_GUILD_NAME
         );
 
@@ -182,7 +209,10 @@ public class GuildOperatorTest
             = this.mergeAndShuffleList(
                 uuidsOfJePrefix.stream().skip(1L).toList(),
                 uuidsOfMiPrefix.stream().skip(1L).toList(),
-                uuidOfAltPrefix.stream().skip(1L).toList()
+                uuidOfAltPrefix.stream().skip(1L).toList(),
+                uuidOfFePrefix.stream().skip(1L).toList(),
+                uuidOfFeLsafix.stream().skip(1L).toList(),
+                uuidOfPePrefix.stream().skip(1L).toList()
             );
 
         int namesAvgLen = mergedNames.size() / 3;
@@ -287,7 +317,7 @@ public class GuildOperatorTest
     }
 
     /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
-    @Order(5)
+    @Order(6)
     @Test
     public void redisFlushAllAsync()
     {
