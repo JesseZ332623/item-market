@@ -103,7 +103,7 @@ local guildName = redis.call('HGET', userKey, "\"guild\"")
 local guildRole = redis.call('HGET', userKey, "\"guild-role\"")
 
 if
-    guildName ~= nil and guildRole ~= "\"Leader\""
+    guildName ~= '---' and guildRole ~= "\"Leader\""
 then
     local guildKey    = 'guild:' ..guildName
     local guildLogKey = 'guild:log'
@@ -113,8 +113,8 @@ then
         'XADD',
         guildLogKey, '*',
         'event', 'LEAVE_GUILD',
-        'uuid', uuid,
-        'guild-name', formatGuildName,
+        'uuid', targetUUID,
+        'guild-name', guildName,
         'timestamp', timestamp
     )
 end
