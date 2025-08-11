@@ -17,7 +17,7 @@ local acquireTimeout = tonumber(ARGV[2])
 local lockTimeout    = tonumber(ARGV[3])
 
 -- 分布式锁想避免 “时间漂移” 很难，
--- 但统一时间源头可以很好的避免这一点
+-- 但统一时间源头可以尽可能地避免这一点
 local now        = tonumber(redis.call('TIME')[1])
 local acquireEnd = now + acquireTimeout
 
