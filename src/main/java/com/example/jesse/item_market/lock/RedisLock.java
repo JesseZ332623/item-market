@@ -1,6 +1,5 @@
 package com.example.jesse.item_market.lock;
 
-import com.example.jesse.item_market.lock.impl.RedisLockImpl;
 import reactor.core.publisher.Mono;
 
 import java.util.function.Function;
