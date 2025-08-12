@@ -26,13 +26,8 @@ local scoreOfTimestamp
     = tonumber(currentTimestamp[1]) +               -- 整数部分
       tonumber(currentTimestamp[2]) / (1000 * 1000) -- 小数部分（微妙级）
 
-redis.log(
-    redis.LOG_NOTICE,
-    "scoreOfTimestamp = " ..string.format("%.3f", scoreOfTimestamp)
-)
-
 -- 删除那些超时的信号量
---（有序集合中分数值为距离当前时间 10 秒前的所有成员）
+--（有序集合中分数值为距离当前时间 semaphoreTimeout 秒前的所有成员）
 redis.call(
     'ZREMRANGEBYSCORE',
     semaphoreNameKey,
@@ -49,9 +44,9 @@ redis.call(
     其实主要是为了防止因不同客户端的系统时间差异导致的信号量窃取问题。
     （
         例：假设有系统 A 和 B，A 的系统时间比 B 快 10 毫秒，
-          那么在 A 成功获取最后一个信号量的 10 豪秒内，B 再尝试获取一个信号量，
-          则 B 在获取信号量的过程中就会错误的删除属于 A 的最后一个信号量，
-          导致系统 A 释放信号量失败。
+            那么在 A 成功获取最后一个信号量的 10 豪秒内，B 再尝试获取一个信号量，
+            则 B 在获取信号量的过程中就会错误的删除属于 A 的最后一个信号量，
+            导致系统 A 释放信号量失败。
     ）
 ]]
 redis.call(
