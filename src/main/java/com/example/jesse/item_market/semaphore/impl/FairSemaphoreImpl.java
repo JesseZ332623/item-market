@@ -2,6 +2,7 @@ package com.example.jesse.item_market.semaphore.impl;
 
 import com.example.jesse.item_market.semaphore.FairSemaphore;
 import com.example.jesse.item_market.semaphore.exception.AcquireSemaphoreFailed;
+import com.example.jesse.item_market.semaphore.exception.SemaphoreNotFound;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -19,8 +21,24 @@ import java.util.function.Function;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.SEMAPHORE_OPERATOR;
+import static java.lang.String.format;
 
-/** Redis 公平信号量实现。*/
+/**
+ * <p>Redis 公平信号量实现。</p>
+ *
+ * <i>
+ *  需要强调的是，
+ *  公平信号量（也可以视为分布式互斥锁）
+ *  是限制使用同一个 Redis 服务的不同客户端访问某个资源的并发量的，
+ *  不要和传统的互斥锁搞混了，也最好不要拿传统互斥锁的思维去使用它，
+ *  否则多少有点大材小用了（笑）。
+ * </i></br>
+ *
+ * <strong>
+ *     对于同一线程内的多进程同步，应该使用：</br>
+ *     {@link java.util.concurrent.Semaphore}
+ * </strong>
+ */
 @Slf4j
 @Component
 public class FairSemaphoreImpl implements FairSemaphore
@@ -92,8 +110,7 @@ public class FairSemaphoreImpl implements FairSemaphore
                                     )
                                 );
 
-                            case "SUCCESS" ->
-                                Mono.just(identifier);
+                            case "SUCCESS" -> Mono.just(identifier);
 
                             case null, default ->
                                 throw new IllegalStateException(
@@ -104,6 +121,52 @@ public class FairSemaphoreImpl implements FairSemaphore
             )
             .onErrorResume((exception) ->
                 redisGenericErrorHandel(exception, null));
+    }
+
+    /**
+     * 进程为了长期持有信号量，需要定期的对信号量进行刷新。
+     *
+     * @param semaphoreName 信号量键名
+     * @param identifier    信号量唯一标识符
+     *
+     * @return 不发布任何数据的 Mono，表示操作是否完成
+     */
+    private @NotNull Mono<Void>
+    refreshFairSemaphore(String semaphoreName, String identifier)
+    {
+        return
+        this.luaScriptReader
+            .fromFile(SEMAPHORE_OPERATOR,"refreshFairSemaphore.lua")
+            .flatMap((script) ->
+                this.scriptRedisTemplate
+                    .execute(script, List.of(semaphoreName), identifier)
+                    .timeout(Duration.ofSeconds(3L))
+                    .next()
+                    .flatMap((result) ->
+                        switch (result.getResult())
+                        {
+                            case "SEMAPHORE_NOT_FOUND" ->
+                                Mono.error(
+                                    new SemaphoreNotFound(
+                                        format(
+                                            "Fair semapore %s not exist in %s",
+                                            identifier, semaphoreName),
+                                        null
+                                    )
+                                );
+
+                            case "SUCCESS" -> Mono.empty();
+
+                            case null, default ->
+                                throw new IllegalStateException(
+                                    "Unexpected value: " + result.getResult()
+                                );
+                        }
+                    )
+            )
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .then();
     }
 
     /**
@@ -132,7 +195,16 @@ public class FairSemaphoreImpl implements FairSemaphore
                     .timeout(Duration.ofSeconds(3L))
                     .next()
                     .flatMap((result) ->
-                        switch (result.getResult()) {
+                        switch (result.getResult())
+                        {
+                            case "SEMAPHORE_TIMEOUT" ->
+                                Mono.error(
+                                    new SemaphoreNotFound(
+                                        format("Semaphore: %s timeout.", identifier),
+                                        null
+                                    )
+                                );
+
                             case "SUCCESS" -> Mono.empty();
 
                             case null, default ->
@@ -149,7 +221,7 @@ public class FairSemaphoreImpl implements FairSemaphore
 
     /**
      * 兼容响应式流的 Redis 公平信号量操作，
-     * 使用 Mono.usingWhen() 方法，在信号量实例（FairSemaphoreImpl）的作用域内，
+     * 使用 Mono.usingWhen() 方法，在业务逻辑（action）范围前后，
      * 自动完成信号量的获取与释放操作。
      *
      * @param <T> 在信号量作用域中业务逻辑返回的类型
@@ -173,7 +245,49 @@ public class FairSemaphoreImpl implements FairSemaphore
             Mono.usingWhen(
                 this.acquireFairSemaphore(semaphoreName, limit, timeout)
                     .map((identifier) -> identifier),
-                action,
+                (identifier) -> {
+                    Mono<T> actionMono = action.apply(identifier);
+
+                    // 对持有信号量时间较长的进程，才提供刷新功能
+                    if (timeout > 10)
+                    {
+                        // 刷新间隔为超时时间的一半
+                        Duration refreshInterval
+                            = Duration.ofSeconds(timeout / 2);
+
+                        /*
+                         * 这里出现了几个复杂的响应式流操作，需要做出说明：
+                         *
+                         * 1. delayUntil() 延迟调用这个操作的流，直到提供给这个操作的的流
+                         *   （此处是在长时间业务执行完毕前不断刷新信号量的操作）执行完毕，
+                         *    才允许 actionMono 的完成信号向下游传播。
+                         *
+                         * 2. Flux.interval() 每间隔一段时间，递增然后发布一个 Long 值
+                         *
+                         * 3. takeUntilOther() 有条件的 take 操作，
+                         *    直到收到业务逻辑 actionMono 执行完毕的信号
+                         *    即 actionMono.ignoreElement().then(Mono.empty())，
+                         *    才停止 Flux.interval() 的发布（业务执行完毕，停止刷新信号量）。
+                         *
+                         * 4. concatMap() 将每一个 Flux.interval() 发布的值映射为
+                         *    refreshFairSemaphore() 操作，并按顺序执行。
+                         *
+                         * 5. then() 我们不关心刷新的结果，只关系刷新是否成功完成
+                         */
+                        return
+                        actionMono.delayUntil((value) ->
+                            Flux.interval(refreshInterval)
+                                .takeUntilOther(
+                                    actionMono.ignoreElement()
+                                              .then(Mono.empty()))
+                                .concatMap((ignore) ->
+                                    this.refreshFairSemaphore(semaphoreName, identifier))
+                                .then()
+                        );
+                    }
+
+                    return actionMono;
+                },
                 (indentifier) ->
                     this.releaseFairSemaphore(semaphoreName, indentifier)
             )
