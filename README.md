@@ -2,7 +2,7 @@
 
 ## Technology Selection
 
-![SKILLS](https://skillicons.dev/icons?i=redis,spring,lua)
+![SKILLS](https://skillicons.dev/icons?i=redis,mysql,spring,lua)
 
 ---
 
