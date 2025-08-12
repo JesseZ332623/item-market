@@ -9,7 +9,7 @@ public interface FairSemaphore
 {
     /**
      * 兼容响应式流的 Redis 公平信号量操作，
-     * 使用 Mono.usingWhen() 方法，在信号量实例（FairSemaphoreImpl）的作用域内，
+     * 使用 Mono.usingWhen() 方法，在业务逻辑（action）范围前后，
      * 自动完成信号量的获取与释放操作。
      *
      * @param <T> 在信号量作用域中业务逻辑返回的类型
