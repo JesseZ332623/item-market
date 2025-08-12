@@ -349,8 +349,8 @@ public class UserOperatorTest
     }
 
     /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
-//    @Order(12)
-//    @Test
+    @Order(12)
+    @Test
     public void redisFlushAllAsync()
     {
         this.redisTemplate.getConnectionFactory()
