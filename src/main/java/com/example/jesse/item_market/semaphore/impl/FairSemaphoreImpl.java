@@ -100,7 +100,8 @@ public class FairSemaphoreImpl implements FairSemaphore
                     .timeout(Duration.ofSeconds(5L))
                     .next()
                     .flatMap((result) ->
-                        switch (result.getResult()) {
+                        switch (result.getResult())
+                        {
                             case "ACQUIRE_SEMAPHORE_FAILED" ->
                                 Mono.error(
                                     new AcquireSemaphoreFailed(
