@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static com.example.jesse.item_market.utils.LuaScriptOperatorType.*;
 import static java.lang.String.format;
 
 /** Redis Lua 脚本读取器实现。*/
@@ -90,8 +89,8 @@ final public class LuaScriptReader
     {
             String classpathPath
                 = LUA_SCRIPT_CLASSPATH_PREFIX +
-                operatorType.getTypeName()  +
-                "/"                         +
+                operatorType.getTypeName()    +
+                "/"                           +
                 luaScriptName;
 
             try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(classpathPath))
