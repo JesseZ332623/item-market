@@ -30,7 +30,7 @@ import static com.example.jesse.item_market.utils.TestUtils.SELECT_AMOUNT;
 @Slf4j
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class ProjectOperatorTest
+public class UserOperatorTest
 {
     @Autowired
     private
@@ -196,7 +196,7 @@ public class ProjectOperatorTest
                             double randomValue
                                 = ThreadLocalRandom
                                 .current()
-                                .nextDouble(15.00, 35.00);
+                                .nextDouble(150.00, 350.00);
 
                             return Flux.fromIterable(randomWeapons)
                                 .flatMap(weapon ->
@@ -349,8 +349,8 @@ public class ProjectOperatorTest
     }
 
     /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
-    @Order(12)
-    @Test
+//    @Order(12)
+//    @Test
     public void redisFlushAllAsync()
     {
         this.redisTemplate.getConnectionFactory()
