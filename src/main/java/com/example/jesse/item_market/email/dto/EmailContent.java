@@ -1,5 +1,6 @@
 package com.example.jesse.item_market.email.dto;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import jakarta.annotation.Nullable;
 import lombok.*;
 import org.jetbrains.annotations.NotNull;
@@ -10,10 +11,18 @@ import java.time.Duration;
 
 import static java.lang.String.format;
 
-/** 向指定用户发送邮件的内容实体。*/
+/**
+ * 向指定用户发送邮件的内容实体。
+ * （支持 Jacson 的序列化与反序列化）
+ */
 @Data
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
 @ToString
+@JsonTypeInfo(
+    use      = JsonTypeInfo.Id.CLASS,        // 使用完全限定类名作为类型标识
+    include  = JsonTypeInfo.As.PROPERTY,     // 作为单独属性包含
+    property = "@class"                      // 类型信息的属性名
+)
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class EmailContent
 {
     private String to;              // 发给谁（如 PerterGriffen@gmail.com）
