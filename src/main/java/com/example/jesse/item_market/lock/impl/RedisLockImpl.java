@@ -23,7 +23,15 @@ import static com.example.jesse.item_market.utils.KeyConcat.getRedisLockKey;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.LOCK_OPERATOR;
 import static java.lang.String.format;
 
-/** Redis 分布式锁实现类。*/
+/**
+ * <p>Redis 分布式锁实现类。</p>
+ *
+ * <i>
+ *     需要强调的是，分布式锁是协调多个访问同一个 Redis 服务的客户端使用的锁，
+ *     不要和用于控制同一个进程的多个线程之间同步的锁
+ *     （比如 Java 自带的 synchronized）搞混了（笑）。
+ * </i>
+ */
 @Slf4j
 @Component
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -145,7 +153,7 @@ public class RedisLockImpl implements RedisLock
 
     /**
      * 兼容响应式流的 Redis 分布式锁操作，
-     * 使用 Mono.usingWhen() 方法，在锁实例（RedisLockImpl）的作用域内，
+     * 使用 Mono.usingWhen() 方法，在在业务逻辑（action）范围前后，
      * 自动完成锁的获取与释放操作。
      *
      * @param <T> 在锁作用域中业务逻辑返回的类型
