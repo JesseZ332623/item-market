@@ -22,7 +22,6 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static com.example.jesse.item_market.utils.KeyConcat.*;
-import static com.example.jesse.item_market.utils.KeyConcat.getUserKey;
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsSting;
 import static java.lang.String.format;
