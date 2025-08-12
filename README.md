@@ -44,6 +44,10 @@
 
 [Reactive Distributed Lock](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/lock/impl/RedisLockImpl.java)
 
+### 响应式 Redis 公平信号量实现详见：
+
+[Reactive Fair Semaphore](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/semaphore/impl/FairSemaphoreImpl.java)
+
 ### 项目 Lua 脚本详见：
 
 [User Script](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/user-operator)
@@ -54,6 +58,8 @@
 
 [Distributed Lock Script](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/lock-operator)
 
+[Distributed Fair Semaphore](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/semaphore-operator)
+
 ---
 
-### Latest Update date: 2025-08-05
+### Latest Update date: 2025-08-12
