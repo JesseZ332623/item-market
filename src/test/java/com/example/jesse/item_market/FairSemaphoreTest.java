@@ -3,9 +3,8 @@ package com.example.jesse.item_market;
 import com.example.jesse.item_market.semaphore.FairSemaphore;
 import com.example.jesse.item_market.user.UserRedisService;
 import com.example.jesse.item_market.user.Weapons;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.connection.RedisServerCommands;
@@ -19,10 +18,11 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.example.jesse.item_market.utils.LimitRandomElement.getRandomLimit;
-import static com.example.jesse.item_market.utils.TestUtils.SELECT_AMOUNT;
 
 /** Redis 公平信号量测试。*/
+@Slf4j
 @SpringBootTest
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class FairSemaphoreTest
 {
     private final static List<String> TEST_USERS
@@ -50,16 +50,19 @@ public class FairSemaphoreTest
     /** 初始化一些用户，和他们的包裹。*/
     private void CreateSomeNewUsers()
     {
+        log.info("Call Method: CreateSomeNewUsers()");
+
         Flux.fromIterable(TEST_USERS)
             .flatMap((name) ->
-                this.userRedisService
-                    .addNewUser(name))
+                this.userRedisService.addNewUser(name))
             .blockLast();
     }
 
     /** 为所有用户入库 10 个随机武器。*/
     private void AddWeaponToInventory()
     {
+        log.info("Call Method: AddWeaponToInventory()");
+
         this.userRedisService
             .getAllUserUUID().collectList()
             .flatMapMany(Flux::fromIterable)
@@ -73,19 +76,15 @@ public class FairSemaphoreTest
     }
 
     /**
-     * 随机取几个用户，
-     * 将他们的随机几个装备上架市场售卖。
+     * 将所有用户的随机几个装备上架市场售卖。
      */
     private void AddWeaponToMarket()
     {
-        // 1. 获取随机用户列表
-        Mono<List<String>> randomUsers
-            = this.userRedisService.getAllUserUUID()
-            .collectList()
-            .map(uuidList -> getRandomLimit(uuidList, SELECT_AMOUNT));
+        log.info("Call Method: AddWeaponToMarket()");
 
-        // 2. 对每个用户，随机选 5 个武器上架市场
-        randomUsers.flatMapMany(Flux::fromIterable)
+        // 1. 对每个用户，随机选 5 个武器上架市场
+        this.userRedisService
+            .getAllUserUUID()
             .flatMap(uuid ->
                 this.userRedisService.getAllWeaponsFromInventoryByUUID(uuid)
                     .collectList() // 先收集所有武器
@@ -96,8 +95,8 @@ public class FairSemaphoreTest
 
                             double randomValue
                                 = ThreadLocalRandom
-                                .current()
-                                .nextDouble(15.00, 35.00);
+                                    .current()
+                                    .nextDouble(15.00, 35.00);
 
                             return Flux.fromIterable(randomWeapons)
                                 .flatMap(weapon ->
@@ -112,8 +111,10 @@ public class FairSemaphoreTest
             ).blockLast(); // 阻塞直到所有操作完成
     }
 
-    private String getRandomUserId()
+    private String GetRandomUserId()
     {
+        log.info("Call Method: GetRandomUserId()");
+
         List<String> uuids
             = this.userRedisService
                  .getAllUserUUID()
@@ -140,7 +141,7 @@ public class FairSemaphoreTest
         AddWeaponToInventory();
         AddWeaponToMarket();
 
-        final String observedUserId = getRandomUserId();
+        final String observedUserId = GetRandomUserId();
 
         Flux.range(0, 10)
             .flatMap((index) ->
@@ -158,8 +159,8 @@ public class FairSemaphoreTest
     }
 
     /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
-    @Order(2)
     @Test
+    @Order(2)
     public void redisFlushAllAsync()
     {
         this.redisTemplate.getConnectionFactory()
