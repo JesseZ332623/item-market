@@ -36,6 +36,10 @@
 
 [Market redis service](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/market/impl/MarketServiceImpl.java)
 
+### 邮件任务执行器实现详见：
+
+[Email Send Task Executor](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/email_send_task/impl/EmailSendTaskImpl.java)
+
 ### 项目所有操作测试类详见：
 
 [Project operator test](https://github.com/JesseZ332623/item-market/blob/main/src/test/java/com/example/jesse/item_market)
