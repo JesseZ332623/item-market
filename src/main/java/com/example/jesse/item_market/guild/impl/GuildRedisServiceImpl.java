@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import javax.naming.OperationNotSupportedException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -422,7 +423,11 @@ public class GuildRedisServiceImpl implements GuildRedisService
         String sender, String receiver,
         String message)
     {
-        return null;
+        return Mono.error(
+            new OperationNotSupportedException(
+                "Method: sendMessageBetweenMembers() not impliment..."
+            )
+        );
     }
 
     /**
