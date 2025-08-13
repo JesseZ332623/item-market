@@ -13,7 +13,7 @@ import static java.lang.String.format;
 
 /**
  * 向指定用户发送邮件的内容实体。
- * （支持 Jacson 的序列化与反序列化）
+ *（支持 Jacson 的序列化与反序列化）
  */
 @Data
 @ToString
@@ -25,12 +25,18 @@ import static java.lang.String.format;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class EmailContent
 {
-    private String to;              // 发给谁（如 PerterGriffen@gmail.com）
-    private String subject;         // 邮箱主题
-    private String textBody;        // 邮件正文
+    /** 发给谁 (如 PerterGriffen@gmail.com) */
+    private String to;
 
+    /** 邮箱主题 */
+    private String subject;
+
+    /** 邮件正文 */
+    private String textBody;
+
+    /** 附件路径（可以为 null 表示没有附件）*/
     @Nullable
-    private String attachmentPath;  // 附件路径（可以为 null 表示没有附件）
+    private String attachmentPath;
 
     /**
      * 发送验证码邮件需要的内容。
