@@ -2,9 +2,13 @@ package com.example.jesse.item_market;
 
 import com.example.jesse.item_market.email.dto.EmailContent;
 import com.example.jesse.item_market.email.utils.VerifyCodeGenerator;
+import com.example.jesse.item_market.email_send_task.dto.EmailTaskDTO;
+import com.example.jesse.item_market.email_send_task.dto.TaskPriority;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,6 +20,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+
 /**
  * EmailContent 类的序列化（Serialization）和
  * 反序列化（Deserialization）测试。
@@ -23,7 +30,7 @@ import java.util.Map;
 @Slf4j
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class EmailContentSerializationTest
+public class EmailTaskSerializationTest
 {
     private final static String VARIFY_CONTENT_JSON_KEY
         = "varifyContentJson";
@@ -31,7 +38,8 @@ public class EmailContentSerializationTest
     private final static String ATTACHMENT_EMAIL_CONTENT_JOSN_KEY
         = "attachmentEmailContent";
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper
+        = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     @Autowired
     private ReactiveRedisTemplate<String, Object> redisTemplate;
@@ -54,16 +62,28 @@ public class EmailContentSerializationTest
                 "Peter-Griffin233@gmail.com",
                 "Big News For You!",
                 "The pictures of Peter-Griffin is published!",
-                "E:\\图片素材\\Family-Guy Avatar\\Perter 头像.png"
-            ).block();
+                "E:\\图片素材\\Family-Guy Avatar\\Perter 头像.png")
+            .block();
+
+        EmailTaskDTO varifyEmailTask
+            = EmailTaskDTO.create(
+                TaskPriority.HIGH,
+                varifyContent)
+            .block();
+
+        EmailTaskDTO attachmentEmailTask
+            = EmailTaskDTO.create(
+                TaskPriority.LOW,
+                attachmentEmailContent)
+            .block();
 
         try
         {
             String varifyContentJson
-                = this.mapper.writeValueAsString(varifyContent);
+                = this.mapper.writeValueAsString(varifyEmailTask);
 
             String attachmentEmailContentJson
-                = this.mapper.writeValueAsString(attachmentEmailContent);
+                = this.mapper.writeValueAsString(attachmentEmailTask);
 
             System.out.println(varifyContentJson);
             System.out.println(attachmentEmailContentJson);
@@ -80,7 +100,7 @@ public class EmailContentSerializationTest
         catch (JsonProcessingException exception)
         {
             log.error(
-                "Serialization instance of EmailContent failed! Caused by: {}",
+                "Serialization instance of EmailTaskDTO failed! Caused by: {}",
                 exception.getMessage(), exception
             );
         }
@@ -104,15 +124,15 @@ public class EmailContentSerializationTest
         contentJsons.forEach((contentJson) -> {
             try
             {
-                EmailContent content
-                    = this.mapper.readValue(contentJson, EmailContent.class);
+                EmailTaskDTO content
+                    = this.mapper.readValue(contentJson, EmailTaskDTO.class);
 
                 System.out.println(content);
             }
             catch (JsonProcessingException exception)
             {
                 log.error(
-                    "Deserialization instance of EmailContent failed! Caused by: {}",
+                    "Deserialization instance of EmailTaskDTO failed! Caused by: {}",
                     exception.getMessage(), exception
                 );
             }
@@ -121,6 +141,25 @@ public class EmailContentSerializationTest
 
     @Test
     @Order(3)
+    public void
+    getRedisTimestamp()
+    {
+        this.redisTemplate
+            .getConnectionFactory()
+            .getReactiveConnection()
+            .serverCommands()
+            .time(MICROSECONDS)
+            .timeout(Duration.ofSeconds(3L))
+            .map((time) ->
+                (time.doubleValue() / (1000.00 * 1000.00)))
+            .doOnSuccess((time) -> System.out.printf("%f%n", time))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .block();
+    }
+
+    @Test
+    @Order(4)
     public void redisFlushAllAsync()
     {
         this.redisTemplate.getConnectionFactory()
