@@ -3,7 +3,9 @@ package com.example.jesse.item_market;
 import com.example.jesse.item_market.email.dto.EmailContent;
 import com.example.jesse.item_market.email_send_task.dto.TaskPriority;
 import com.example.jesse.item_market.email_send_task.impl.EmailSendTaskImpl;
+import com.example.jesse.item_market.utils.UUIDGenerator;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -12,9 +14,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.example.jesse.item_market.email.utils.VerifyCodeGenerator.generateVerifyCode;
 
@@ -32,39 +38,78 @@ public class EmailTaskTest
     @Autowired
     private EmailSendTaskImpl emailSendTask;
 
+    private static final List<TaskPriority> TASK_PRIORITY_LIST
+        = Arrays.asList(TaskPriority.values());
+
+    /** 获取随机的优先级。*/
+    private TaskPriority randomPriority()
+    {
+        return TASK_PRIORITY_LIST.get(
+            ThreadLocalRandom.current()
+                .nextInt(0, TASK_PRIORITY_LIST.size())
+        );
+    }
+
+    /** 获取随机的延时（包括不延时）。*/
+    private Duration
+    randomDelay(long maxDelay)
+    {
+        return
+            Duration.ofSeconds(
+                ThreadLocalRandom.current()
+                    .nextLong(0L, maxDelay)
+            );
+    }
+
+    /** 随机生成指定数量的邮件内容。*/
+    private @NotNull Flux<EmailContent>
+    generateEmailContent(int limits)
+    {
+        return
+        Flux.range(0, limits)
+            .flatMap((ignore) -> {
+
+                String userId = UUIDGenerator.generateAsSting();
+
+                return
+                EmailContent.formWithAttachment(
+                    userId, userId + "@gmail.com",
+                    "You have a new message!",
+                    "Best regards to user: " + userId,
+                    "E:\\图片素材\\趴窗的普拉纳.jpg"
+                );
+            });
+    }
+
     @Test
     @Order(1)
     public void TestAddEmailTask()
     {
-        Mono<EmailContent> heighLevelMail
-            = generateVerifyCode(8)
-                .flatMap((varifyCode) ->
-                    EmailContent.fromVarify(
-                        "Peter-Griffin",
-                        "Peter-Griffin233@gmail.com",
-                        varifyCode,
-                        Duration.ofMinutes(5L)
+        this.generateEmailContent(30000)
+            .buffer(5000)
+            .flatMap((contents) ->
+                Flux.fromIterable(contents)
+                    .flatMap(content ->
+                        this.emailSendTask
+                            .addEmailTask(
+                                content,
+                                this.randomPriority(),
+                                this.randomDelay(10L)
+                            )
                     )
-                );
+            ).blockLast();
+    }
 
-        Mono<EmailContent> lowLevelMail
-            = EmailContent.formWithAttachment(
-                "Peter-Griffin",
-                "Peter-Griffin233@gmail.com",
-                "Big News For You!",
-                "The pictures of Peter-Griffin is published!",
-                "E:\\图片素材\\Family-Guy Avatar\\Perter 头像.png"
-            );
+    @Test
+    @Order(2)
+    public void TestPollAndExcute() throws InterruptedException
+    {
+        Mono.when(
+            this.emailSendTask.startPollDelayZset(),
+            this.emailSendTask.startExcuteEmailSenderTask()
+        ).subscribe();
 
-        heighLevelMail.flatMap((content) ->
-            this.emailSendTask
-                .addEmailTask(content, TaskPriority.HIGH, Duration.ZERO))
-            .block();
-
-        lowLevelMail.flatMap((content) ->
-            this.emailSendTask
-                .addEmailTask(content, TaskPriority.LOW, Duration.ofSeconds(10L)))
-            .block();
+        Thread.sleep(Duration.ofMinutes(10L));
     }
 
     @Test
