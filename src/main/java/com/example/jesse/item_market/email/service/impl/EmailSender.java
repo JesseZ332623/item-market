@@ -24,10 +24,12 @@ import javax.mail.internet.MimeMultipart;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Properties;
 
 import com.example.jesse.item_market.email.exception.EmailException;
 import com.example.jesse.item_market.email.utils.*;
+import reactor.util.retry.Retry;
 
 import static com.example.jesse.item_market.email.authkey.EmailAuthRedisKey.ENTERPRISE_EMAIL_ADDRESS;
 import static com.example.jesse.item_market.email.authkey.EmailAuthRedisKey.SERVICE_AUTH_CODE;
@@ -403,16 +405,6 @@ public class EmailSender implements EmailSenderInterface
     public Mono<Void>
     sendEmail(@NotNull EmailContent emailContent)
     {
-        return
-        Mono.defer(() -> {
-            log.info(
-                "Send email to: {}, subject: {}, body:{}",
-                emailContent.getTo(), emailContent.getSubject(), emailContent.getTextBody()
-            );
-
-            return Mono.empty();
-        });
-
         /*
          * 对于邮件发送过程中因为网络波动而出现的失败，
          * 有比固定时间重试（fixedDelay()）更好的策略，即指数退避。
@@ -438,55 +430,55 @@ public class EmailSender implements EmailSenderInterface
          * maxBackoff() 则给重试时间封了顶，
          * 不论重试多少次，等待时间都不会超过 10 秒。
          */
-//        final Retry retryStrategy
-//            = Retry.backoff(MAX_ATTEMPT_TIMES, Duration.ofSeconds(1))
-//                   .maxBackoff(Duration.ofSeconds(10))
-//                   .filter(this::isRetryableError)
-//                   .doBeforeRetry(retrySignal -> {
-//                        // 记录尝试次数和失败原因
-//                        log.warn(
-//                            "Retry attempt {} for email to {}.",
-//                            retrySignal.totalRetries() + 1,
-//                            emailContent.getTo()
-//                        );
-//                   });
-//
-//        return EmailFormatVerifier
-//            .isValidEmail(emailContent.getTo()).then(
-//                this.getEmailPublisherInfo()
-//                    .switchIfEmpty(
-//                        Mono.error(
-//                            new EmailException(
-//                                EmailException.ErrorType.CONFIG_MISSING,
-//                                "Missing email publisher info!", null
-//                            )
-//                        )
-//                    )
-//                    .flatMap(tuple ->
-//                        this.sendEmailReactive(
-//                            emailContent,
-//                            tuple.getT1(), tuple.getT2()
-//                        )
-//                    )
-//                    .timeout(Duration.ofSeconds(30L))
-//                    .retryWhen(retryStrategy)
-//                    .onErrorResume(exception -> {
-//                        String errorMessage
-//                            = format(
-//                            "Send email to %s finally failed! MAX_ATTEMPT_TIMES = %d. Cause: %s",
-//                            emailContent.getTo(), MAX_ATTEMPT_TIMES,
-//                            exception.getMessage()
-//                        );
-//
-//                        log.error(errorMessage, exception);
-//
-//                        return Mono.error(
-//                            new EmailException(
-//                                EmailException.ErrorType.NETWORK_ISSUE,
-//                                errorMessage, exception
-//                            )
-//                        );
-//                    })
-//            );
+        final Retry retryStrategy
+            = Retry.backoff(MAX_ATTEMPT_TIMES, Duration.ofSeconds(1))
+                   .maxBackoff(Duration.ofSeconds(10))
+                   .filter(this::isRetryableError)
+                   .doBeforeRetry(retrySignal -> {
+                        // 记录尝试次数和失败原因
+                        log.warn(
+                            "Retry attempt {} for email to {}.",
+                            retrySignal.totalRetries() + 1,
+                            emailContent.getTo()
+                        );
+                   });
+
+        return EmailFormatVerifier
+            .isValidEmail(emailContent.getTo()).then(
+                this.getEmailPublisherInfo()
+                    .switchIfEmpty(
+                        Mono.error(
+                            new EmailException(
+                                EmailException.ErrorType.CONFIG_MISSING,
+                                "Missing email publisher info!", null
+                            )
+                        )
+                    )
+                    .flatMap(tuple ->
+                        this.sendEmailReactive(
+                            emailContent,
+                            tuple.getT1(), tuple.getT2()
+                        )
+                    )
+                    .timeout(Duration.ofSeconds(30L))
+                    .retryWhen(retryStrategy)
+                    .onErrorResume(exception -> {
+                        String errorMessage
+                            = format(
+                            "Send email to %s finally failed! MAX_ATTEMPT_TIMES = %d. Cause: %s",
+                            emailContent.getTo(), MAX_ATTEMPT_TIMES,
+                            exception.getMessage()
+                        );
+
+                        log.error(errorMessage, exception);
+
+                        return Mono.error(
+                            new EmailException(
+                                EmailException.ErrorType.NETWORK_ISSUE,
+                                errorMessage, exception
+                            )
+                        );
+                    })
+            );
     }
 }
