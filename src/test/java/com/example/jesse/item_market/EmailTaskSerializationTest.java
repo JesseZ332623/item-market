@@ -4,16 +4,17 @@ import com.example.jesse.item_market.email.dto.EmailContent;
 import com.example.jesse.item_market.email.utils.VerifyCodeGenerator;
 import com.example.jesse.item_market.email_send_task.dto.EmailTaskDTO;
 import com.example.jesse.item_market.email_send_task.dto.TaskPriority;
+import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.TIMESTAMP_OPERATOR;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 /**
@@ -40,6 +42,9 @@ public class EmailTaskSerializationTest
 
     private final ObjectMapper mapper
         = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+
+    @Autowired
+    private LuaScriptReader luaScriptReader;
 
     @Autowired
     private ReactiveRedisTemplate<String, Object> redisTemplate;
@@ -142,20 +147,27 @@ public class EmailTaskSerializationTest
     @Test
     @Order(3)
     public void
-    getRedisTimestamp()
+    getTimestampFromRedis()
     {
-        this.redisTemplate
-            .getConnectionFactory()
-            .getReactiveConnection()
-            .serverCommands()
-            .time(MICROSECONDS)
-            .timeout(Duration.ofSeconds(3L))
-            .map((time) ->
-                (time.doubleValue() / (1000.00 * 1000.00)))
-            .doOnSuccess((time) -> System.out.printf("%f%n", time))
-            .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
-            .block();
+        Flux.interval(Duration.ofSeconds(2L))
+            .flatMap((ignore) ->
+                this.redisTemplate
+                    .getConnectionFactory()
+                    .getReactiveConnection()
+                    .serverCommands()
+                    .time(MICROSECONDS)
+                    .timeout(Duration.ofSeconds(3L))
+                    .map((time) -> {
+                        double stamp = (time.doubleValue() / (1000.00 * 1000.00));
+                        return Math.round(stamp * 1_000_000) / 1_000_000.0;
+                    })
+                    .cache(Duration.ofSeconds(1L))
+                    .doOnSuccess((timestamp) ->
+                        System.out.printf("%f%n", timestamp))
+                    .onErrorResume((exception) ->
+                        redisGenericErrorHandel(exception, null)))
+            .take(10)
+            .blockLast();
     }
 
     @Test
