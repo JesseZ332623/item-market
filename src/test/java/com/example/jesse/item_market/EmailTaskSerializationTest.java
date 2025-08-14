@@ -4,7 +4,6 @@ import com.example.jesse.item_market.email.dto.EmailContent;
 import com.example.jesse.item_market.email.utils.VerifyCodeGenerator;
 import com.example.jesse.item_market.email_send_task.dto.EmailTaskDTO;
 import com.example.jesse.item_market.email_send_task.dto.TaskPriority;
-import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -14,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
@@ -22,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
-import static com.example.jesse.item_market.utils.LuaScriptOperatorType.TIMESTAMP_OPERATOR;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 /**
@@ -42,9 +39,6 @@ public class EmailTaskSerializationTest
 
     private final ObjectMapper mapper
         = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-
-    @Autowired
-    private LuaScriptReader luaScriptReader;
 
     @Autowired
     private ReactiveRedisTemplate<String, Object> redisTemplate;
