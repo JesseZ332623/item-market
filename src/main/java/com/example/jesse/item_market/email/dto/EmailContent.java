@@ -80,7 +80,7 @@ public class EmailContent
      *
      * @param userName   收件人姓名
      * @param userEmail  收件人邮箱
-     * @param subject    邮件标题（按“用户：XXX” 开头）
+     * @param subject    邮件标题（按 “用户：XXX” 开头）
      * @param message    邮件正文
      * @param attachment 附件路径
      *
