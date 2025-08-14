@@ -65,7 +65,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
     private final Scheduler emailTaskScheduler
         = Schedulers.newBoundedElastic(
             4, 256, "email-task",
-        60, true
+            60, true
     );
 
     /** Jackson 序列化 / 反序列化器。*/
