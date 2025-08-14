@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -392,6 +393,8 @@ public class EmailSender implements EmailSenderInterface
      * 外部可调用的发送邮件的方法。
      *
      * @param emailContent 邮件内容
+     *
+     * @throws SerializationException 当序列化邮件任务 DTO 失败时抛出
      *
      * @return 表示操作是否正确完成的响应式流
      */
