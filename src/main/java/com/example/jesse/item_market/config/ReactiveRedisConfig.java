@@ -53,18 +53,18 @@ public class ReactiveRedisConfig
                     .autoReconnect(true)
                     .socketOptions(
                         SocketOptions.builder()
-                            .connectTimeout(Duration.ofSeconds(3L)) // 连接超时
+                            .connectTimeout(Duration.ofSeconds(5L)) // 连接超时
                             .keepAlive(true) // 自动管理 TCP 连接存活
                             .build()
                     )
                     .timeoutOptions(
                         TimeoutOptions.builder()
-                            .fixedTimeout(Duration.ofSeconds(3L)) // 操作超时
+                            .fixedTimeout(Duration.ofSeconds(10L)) // 操作超时
                             .build()
                     ).build()
             )
-            .commandTimeout(Duration.ofSeconds(3L))  // 命令超时时间
-            .shutdownTimeout(Duration.ofSeconds(3L)) // 关闭超时时间
+            .commandTimeout(Duration.ofSeconds(10L))  // 命令超时时间
+            .shutdownTimeout(Duration.ofSeconds(3L))  // 关闭超时时间
             .build();
 
         // 3. 创建连接工厂
