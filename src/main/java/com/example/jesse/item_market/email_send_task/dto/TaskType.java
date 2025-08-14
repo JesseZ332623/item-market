@@ -9,7 +9,10 @@ public enum TaskType
     DELAY_TASK("delay-task"),
 
     /** 不需要延迟执行，但任务是有优先级的 */
-    PRIORITY_TASK("priority-task");
+    PRIORITY_TASK("priority-task"),
+
+    /** 死信队列。*/
+    DEATH_TASK("death-task");
 
     @Getter
     final String type;
