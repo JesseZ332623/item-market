@@ -22,8 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.example.jesse.item_market.email.utils.VerifyCodeGenerator.generateVerifyCode;
-
 /** 邮件任务执行器测试类。*/
 @Slf4j
 @SpringBootTest
@@ -63,10 +61,10 @@ public class EmailTaskTest
 
     /** 随机生成指定数量的邮件内容。*/
     private @NotNull Flux<EmailContent>
-    generateEmailContent(int limits)
+    generateInfEmailContent()
     {
         return
-        Flux.range(0, limits)
+        Flux.interval(Duration.ofMillis(10L))
             .flatMap((ignore) -> {
 
                 String userId = UUIDGenerator.generateAsSting();
@@ -81,30 +79,27 @@ public class EmailTaskTest
             });
     }
 
-    @Test
-    @Order(1)
-    public void TestAddEmailTask()
+    public Mono<Void> AddEmailTask()
     {
-        this.generateEmailContent(30000)
-            .buffer(5000)
-            .flatMap((contents) ->
-                Flux.fromIterable(contents)
-                    .flatMap(content ->
-                        this.emailSendTask
-                            .addEmailTask(
-                                content,
-                                this.randomPriority(),
-                                this.randomDelay(10L)
-                            )
+        return
+        this.generateInfEmailContent()
+            .flatMap((content) ->
+                this.emailSendTask
+                    .addEmailTask(
+                        content,
+                        this.randomPriority(),
+                        this.randomDelay(10L)
                     )
-            ).blockLast();
+            ).then();
     }
 
+    /** 邮件任务执行器较高负载 10 分钟运行测试。*/
     @Test
-    @Order(2)
-    public void TestPollAndExcute() throws InterruptedException
+    @Order(1)
+    public void TestPollAndExecute() throws InterruptedException
     {
         Mono.when(
+            this.AddEmailTask(),
             this.emailSendTask.startPollDelayZset(),
             this.emailSendTask.startExcuteEmailSenderTask()
         ).subscribe();
