@@ -56,7 +56,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
      *
      * <ul>
      *     <li>池中工作线程数量：4 线程</li>
-     *     <li>任务队列容量：    32 任务</li>
+     *     <li>任务队列容量：    256 任务</li>
      *     <li>工作线程名前缀：  email-task</li>
      *     <li>空闲线程存活时间：60 秒</li>
      *     <li>开启守护线程</li>
@@ -64,7 +64,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
      */
     private final Scheduler emailTaskScheduler
         = Schedulers.newBoundedElastic(
-            4, 32, "email-task",
+            4, 256, "email-task",
         60, true
     );
 
@@ -85,13 +85,6 @@ public class EmailSendTaskImpl implements EmailSenderTask
     {
         this.stopExcuteEmailSenderTask();
         this.stopPollDelayZset();
-
-        /* 此处我在想是否需要阻塞一下线程，确保残余任务执行完毕。*/
-        try { Thread.sleep(Duration.ofSeconds(2L)); }
-        catch (InterruptedException e) { throw new RuntimeException(e); }
-
-        // 关闭本类专用的调度器，不影响全局
-        this.emailTaskScheduler.dispose();
     }
 
     /**
@@ -162,6 +155,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
     {
         EXCUTE_EMAIL_SEND_TASK_STOP.set(false);
 
+        // 显示调用 subscribeOn() 确保提交任务至专用的调度器。
         return
         this.excuteEmailSenderTask()
             .subscribeOn(this.emailTaskScheduler);
@@ -204,7 +198,8 @@ public class EmailSendTaskImpl implements EmailSenderTask
                     throw new SerializationException(
                         format(
                             "Serialization instance of EmailTaskDTO failed! Caused by: %s",
-                            exception.getMessage()),
+                            exception.getMessage()
+                        ),
                         exception
                     );
                 }
@@ -266,10 +261,21 @@ public class EmailSendTaskImpl implements EmailSenderTask
         this.redisTemplate
             .opsForZSet()
             .reverseRange(prioritTaskyZsetKey, Range.open(0L, 0L))
-            .timeout(Duration.ofSeconds(5L))
+            .timeout(Duration.ofSeconds(15L))
             .next()
             .switchIfEmpty(        // 若本次轮询发现集合中空无一物，延迟一小段时间以避免忙等待
-                Mono.delay(Duration.ofSeconds(1L)).then(Mono.empty()))
+                Mono.defer(() -> {
+                    Duration waitTime = Duration.ofSeconds(3L);
+
+                    log.info(
+                        "No task in priority zset, wait {} seconds.",
+                        waitTime.getSeconds()
+                    );
+
+                    return
+                    Mono.delay(waitTime).then(Mono.empty());
+                })
+            )
             .map((task) -> (String) task)
             .flatMap(this::executeEmailSendAndRemove)
             .onErrorResume((exception) ->
@@ -297,11 +303,22 @@ public class EmailSendTaskImpl implements EmailSenderTask
                     /* 通过 score 搜索 ZSET 中所有到期的邮件任务（ZRANGEBYSCORE key 0.00 currenStamp LIMIT 0 -1） */
                     .rangeByScore(emailTaskKey, Range.open(0.00, currenStamp), Limit.unlimited())
                     .timeout(Duration.ofSeconds(5L))
-                    /* 做一下缓冲分批处理 */
-                    .buffer(50)
+                    /* 做一下缓冲避免频繁往返。*/
+                    .buffer(300)
                     .next()
                     .switchIfEmpty(
-                        Mono.delay(Duration.ofSeconds(3L)).then(Mono.empty()))
+                        Mono.defer(() -> {
+                            Duration waitTime = Duration.ofSeconds(3L);
+
+                            log.info(
+                                "No task in delay zset, wait {} seconds.",
+                                waitTime.getSeconds()
+                            );
+
+                            return
+                            Mono.delay(waitTime).then(Mono.empty());
+                        })
+                    )
                     .map((tasks) ->
                         tasks.stream().map((String::valueOf)).toList())
                     .flatMap((tasks) ->
@@ -352,6 +369,11 @@ public class EmailSendTaskImpl implements EmailSenderTask
             final String prioritTaskyZsetKey = getEmailTaskKey(PRIORITY_TASK);
             EmailTaskDTO emailTask;
 
+            log.info(
+                "Move this mail to priority zset. task info: {}",
+                emailTaskJson
+            );
+
             try
             {
                 emailTask = this.mapper
@@ -373,20 +395,20 @@ public class EmailSendTaskImpl implements EmailSenderTask
             this.redisLock
                 .withLock(
                     "MoveToPriorityZSet_Lock" + "-" + emailTask.getTaskIdentifier(),
-                    5L, 5L,
-                    (ignore) -> {
+                    25L, 10L,
+                    (identifier) -> {
                         /* 从延迟邮件任务有序集合中移除 */
                         Mono<Void> removeFromDelayTaskZset
                             = this.redisTemplate
                                   .opsForZSet()
-                                  .remove(delayTaskZsetKey, prioritTaskyZsetKey)
+                                  .remove(delayTaskZsetKey, emailTaskJson)
                                   .then();
 
                         /* 添加到优先邮件任务有序集合中去 */
                         Mono<Void> addToPriorityTaskZset
                             = this.redisTemplate
                                   .opsForZSet()
-                                  .add(prioritTaskyZsetKey, emailTask, emailTask.getPriorityScore())
+                                  .add(prioritTaskyZsetKey, emailTaskJson, emailTask.getPriorityScore())
                                   .then();
 
                         /* 上述两个操作之间无依赖关系，调用 Mono.when() 并行执行。*/
@@ -433,8 +455,13 @@ public class EmailSendTaskImpl implements EmailSenderTask
     {
         return
         Mono.defer(() -> {
-            final String prioritTaskyZsetKey = getEmailTaskKey(PRIORITY_TASK);
+            final String priorityTaskyZsetKey = getEmailTaskKey(PRIORITY_TASK);
             EmailTaskDTO emailTask;
+
+            log.error(
+                "Send email and remove from {}, mail content: {}",
+                priorityTaskyZsetKey, emailTaskJson
+            );
 
             try
             {
@@ -457,10 +484,9 @@ public class EmailSendTaskImpl implements EmailSenderTask
             this.redisLock
                 .withLock(
                     "ExcuteEmailSendTaskAndRemove_Lock" + "-" + emailTask.getTaskIdentifier(),
-                    5L, 15L,
+                    35L, 15L,
                     (ignore) -> {
-
-                        /* 正式的发送邮件。 */
+                        /* 正式的发送邮件。*/
                         Mono<Void> sendEmail
                             = this.emailSender
                                   .sendEmail(emailTask.getContent())
@@ -475,7 +501,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
                         Mono<Void> removeFromPriorityZSet
                             = this.redisTemplate
                                   .opsForZSet()
-                                  .remove(prioritTaskyZsetKey, emailTaskJson)
+                                  .remove(priorityTaskyZsetKey, emailTaskJson)
                                   .then();
 
                         /*
@@ -508,6 +534,9 @@ public class EmailSendTaskImpl implements EmailSenderTask
         this.redisTemplate
             .opsForList()
             .leftPush(deadthQueueKey, emailTaskJson)
+            .timeout(Duration.ofSeconds(5L))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
             .then();
     }
 }
