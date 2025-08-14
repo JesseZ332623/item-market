@@ -85,6 +85,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
     {
         this.stopExcuteEmailSenderTask();
         this.stopPollDelayZset();
+        this.emailTaskScheduler.dispose();
     }
 
     /**
@@ -304,7 +305,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
                     .rangeByScore(emailTaskKey, Range.open(0.00, currenStamp), Limit.unlimited())
                     .timeout(Duration.ofSeconds(5L))
                     /* 做一下缓冲避免频繁往返。*/
-                    .buffer(300)
+                    .buffer(5000)
                     .next()
                     .switchIfEmpty(
                         Mono.defer(() -> {
@@ -480,39 +481,33 @@ public class EmailSendTaskImpl implements EmailSenderTask
                 );
             }
 
-            return
-            this.redisLock
-                .withLock(
-                    "ExcuteEmailSendTaskAndRemove_Lock" + "-" + emailTask.getTaskIdentifier(),
-                    35L, 15L,
-                    (ignore) -> {
-                        /* 正式的发送邮件。*/
-                        Mono<Void> sendEmail
-                            = this.emailSender
-                                  .sendEmail(emailTask.getContent())
-                                 /* 对于多次尝试发送仍旧失败的邮件，放入死信队列。*/
-                                  .onErrorResume(
-                                      EmailException.class,
-                                      (exception) ->
-                                          this.moveToDeadMailQueue(emailTaskJson)
-                                  );
+            /* 正式的发送邮件。*/
+            Mono<Void> sendEmail
+                = this.emailSender
+                      .sendEmail(emailTask.getContent())
+                /* 对于多次尝试发送仍旧失败的邮件，放入死信队列。*/
+                    .onErrorResume(
+                        EmailException.class,
+                        (exception) ->
+                            this.moveToDeadMailQueue(emailTaskJson)
+                    );
 
-                        /* 将这个任务从优先有序集合中移除。*/
-                        Mono<Void> removeFromPriorityZSet
-                            = this.redisTemplate
-                                  .opsForZSet()
-                                  .remove(priorityTaskyZsetKey, emailTaskJson)
-                                  .then();
+                /* 将这个任务从优先有序集合中移除。*/
+                Mono<Void> removeFromPriorityZSet
+                    = this.redisTemplate
+                          .opsForZSet()
+                          .remove(priorityTaskyZsetKey, emailTaskJson)
+                          .then();
 
-                        /*
-                         * 虽然上述两个操作之间无依赖关系，
-                         * 但是邮件发送操作失败概率很高，所以必须让 sendEmail 执行成功，
-                         * 再订阅 removeFromPriorityZSet 操作，避免任务丢失。
-                         */
-                        return
-                        sendEmail.then(removeFromPriorityZSet)
-                                 .timeout(Duration.ofSeconds(15L));
-                    });
+                /*
+                 * 虽然上述两个操作之间无依赖关系，
+                 * 但是邮件发送操作失败概率很高，所以必须让 sendEmail 执行成功，
+                 * 再订阅 removeFromPriorityZSet 操作，避免任务丢失。
+                 */
+                return
+                sendEmail.then(removeFromPriorityZSet)
+                         .timeout(Duration.ofSeconds(15L));
+
         })
         .onErrorResume((exception) ->
             redisGenericErrorHandel(exception, null));
