@@ -25,13 +25,13 @@ public interface EmailSenderTask
     addEmailTask(EmailContent content, TaskPriority priority, Duration delay);
 
     /** 启动延迟任务有序集合轮询。*/
-    void startPollDelayZset();
+    Mono<Void> startPollDelayZset();
 
     /** 关闭延迟任务有序集合轮询。*/
     void stopPollDelayZset();
 
     /** 启动优先有序集合的邮件发送任务。*/
-    void startExcuteEmailSenderTask();
+    Mono<Void> startExcuteEmailSenderTask();
 
     /** 关闭优先有序集合的邮件发送任务。*/
     void stopExcuteEmailSenderTask();
