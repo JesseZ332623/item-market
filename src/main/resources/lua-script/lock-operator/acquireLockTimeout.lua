@@ -1,5 +1,5 @@
 --[[
-    尝试获取一个分布式锁
+    尝试获取一个分布式锁。
 
     KEYS:
         lockKeyName 分布式锁键
@@ -9,6 +9,13 @@
         acquireTimeout  尝试获取锁的时间限制
         lockTimeout     锁本身的持有时间限制
 ]]
+
+--[[
+    由于脚本中出现了 TIME 这样的非确定命令，
+    因此这里需要调用 redis.replicate_commands() 显式的开启单命令模式，
+    以约 30 % 的性能下架换绝对的一致。
+]]
+redis.replicate_commands()
 
 local lockKeyName = KEYS[1]
 
