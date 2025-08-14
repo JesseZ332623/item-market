@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
@@ -31,24 +32,30 @@ public class EmailAuthRedisService
     @PostConstruct
     public void readEmailPublisherInfo()
     {
-        this.emailAuthQueryService
-            .findEmailPublisherInfoById(1)
-            .flatMap(
-                (publisherInfo) ->
-                    this.redisTemplate.opsForValue()
-                        .set(ENTERPRISE_EMAIL_ADDRESS.toString(), publisherInfo.getEmail())
-                        .then(this.redisTemplate.opsForValue()
-                                 .set(SERVICE_AUTH_CODE.toString(), publisherInfo.getEmailAuthCode())
-                        )
-            )
-            .timeout(Duration.ofSeconds(5L))
-            .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
-            .doOnSuccess((isSuccess) ->
-                log.info(
-                    "Read email publisher info to redis complete! Result: {}",
-                    isSuccess
+        Mono.zip(
+            this.redisTemplate.hasKey(ENTERPRISE_EMAIL_ADDRESS.toString()),
+            this.redisTemplate.hasKey(SERVICE_AUTH_CODE.toString()))
+        .flatMap((existRes) -> {
+
+            // 如果这两个键已经存在了，就不要重复写入。
+            if ((existRes.getT1() && existRes.getT2())) {
+                return Mono.empty();
+            }
+
+            return
+            this.emailAuthQueryService
+                .findEmailPublisherInfoById(1)
+                .flatMap(
+                    (publisherInfo) ->
+                        this.redisTemplate.opsForValue()
+                            .set(ENTERPRISE_EMAIL_ADDRESS.toString(), publisherInfo.getEmail())
+                            .then(this.redisTemplate.opsForValue()
+                                .set(SERVICE_AUTH_CODE.toString(), publisherInfo.getEmailAuthCode())
+                            )
                 )
-            ).subscribe();
+                .timeout(Duration.ofSeconds(5L))
+                .onErrorResume((exception) ->
+                    redisGenericErrorHandel(exception, null));
+        }).subscribe();
     }
 }
