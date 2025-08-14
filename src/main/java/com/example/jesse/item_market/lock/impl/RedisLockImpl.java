@@ -140,8 +140,9 @@ public class RedisLockImpl implements RedisLock
                             }
 
                             case null, default ->
-                                Mono.error(new IllegalStateException(
-                                    "Unexpected value: " + result.getResult()
+                                Mono.error(
+                                    new IllegalStateException(
+                                        "Unexpected value: " + result.getResult()
                                     )
                             );
                         })
