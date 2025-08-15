@@ -3,7 +3,7 @@
 
     KEYS:
         newUserKey       用户键（如：users:114934523722107784）
-        userSetKey       用户集合键（用来保证用户名的唯一性）
+        userHashKey      用户哈希校验键（用用户名映射他的 UUID，用来保证用户名的唯一性）
         userInventoryKey 用户包裹键（如：inventories:114935169325609268）
     ARGV:
         userNameField       用户名哈希字段名
@@ -15,7 +15,7 @@
         initWeaponsStr      新用户的初始武器（空格分割的字符串，如："Sword Shield Axe ..."）
 ]]
 local newUserKey       = KEYS[1]
-local userSetKey       = KEYS[2]
+local userHashKey      = KEYS[2]
 local userInventoryKey = KEYS[3]
 
 local userNameField      = ARGV[1]
@@ -26,7 +26,15 @@ local newUserName        = ARGV[5]
 local newUserFunds       = ARGV[6]
 local initWeaponsStr     = string.match(ARGV[7], '^"(.*)"$')
 
+-- 从 newUserKey 中提取用户唯一 ID
+local uuid = "\"" ..string.match(newUserKey, ":([^:]+)").. "\""
+
+-- 当前时间戳（秒）
 local timestamp = redis.call('TIME')[1]
+
+if not uuid then
+    uuid = "unknow"
+end
 
 -- 解析武器列表成一个 Lua Table
 local initWeapons = {}
@@ -34,13 +42,14 @@ for weapon in string.gmatch(initWeaponsStr, "%S+") do
     table.insert(initWeapons, "\"" ..weapon.. "\"")
 end
 
--- 尝试往用户集合内插入新用户，若返回 0 则代表用户名重复
-if redis.call('SADD', userSetKey, newUserName) == 0
+-- 尝试往用户哈希内插入新用户，
+-- 若返回 0 则代表用户名重复
+if redis.call('HSET', userHashKey, newUserName, uuid) == 0
 then
     return '{"result": "DUPLICATE_USER"}'
 end
 
--- 用户添加进集合成功，需要加一条审计数据
+-- 用户添加进哈希成功，需要加一条审计数据
 redis.call(
     'XADD', 'user-name:log', '*',
     'event', 'USERNAME_INSERT',
@@ -48,7 +57,7 @@ redis.call(
     'timestamp', timestamp
 )
 
--- 添加新用户
+-- 正式添加新用户
 redis.call(
     'HSET', newUserKey,
     userNameField, newUserName,
@@ -60,12 +69,6 @@ redis.call(
 -- 为该用户添加初始武器
 if #initWeapons > 0 then
     redis.call('RPUSH', userInventoryKey, unpack(initWeapons))
-end
-
-local uuid = string.match(newUserKey, ":([^:]+)")
-
-if not uuid then
-    uuid = "unknow"
 end
 
 -- 用户数据的审计信息
