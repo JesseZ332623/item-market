@@ -41,7 +41,7 @@ import static java.lang.String.format;
 /** 封装了 javax.mail 库的响应式邮件发送器。*/
 @Data
 @Slf4j
-@Service(value = "ReleaseImpl")
+@Service
 public class EmailSender implements EmailSenderInterface
 {
     /** 提供邮箱服务的域名。*/
