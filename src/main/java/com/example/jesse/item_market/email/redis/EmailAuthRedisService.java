@@ -5,6 +5,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -30,6 +31,16 @@ public class EmailAuthRedisService
      * 将邮箱发送人的邮箱号和服务授权码读出，按指定 key 存入 Redis（自动执行）。
      */
     @PostConstruct
+    public void init() {
+        // 初始执行一次
+        this.readEmailPublisherInfo();
+    }
+
+    /**
+     * 后续开启定时任务，
+     * 每 1 秒执行一次，确保发送人信息，授权码一直都在。
+     */
+    @Scheduled(fixedRate = 1000)
     public void readEmailPublisherInfo()
     {
         Mono.zip(
@@ -41,6 +52,8 @@ public class EmailAuthRedisService
             if ((existRes.getT1() && existRes.getT2())) {
                 return Mono.empty();
             }
+
+            log.info("Flush email publish info.");
 
             return
             this.emailAuthQueryService
