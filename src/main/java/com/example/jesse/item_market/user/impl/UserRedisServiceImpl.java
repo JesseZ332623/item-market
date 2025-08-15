@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import static com.example.jesse.item_market.utils.KeyConcat.*;
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.utils.KeyConcat.getUserHashKey;
 import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsSting;
 import static java.lang.String.format;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPERATOR;
@@ -50,20 +51,18 @@ public class UserRedisServiceImpl implements UserRedisService
     private
     ReactiveRedisTemplate<String, LuaOperatorResult> redisScriptTemplate;
 
-    /** 获取所有用户的 UUID。*/
+    /**
+     * 获取所有用户的 UUID
+     *（直接去用户哈希校验里面找，避免了 SCAN 操作，速度更快）。
+     */
     @Override
     public Flux<String> getAllUserUUID()
     {
-        return this.redisTemplate
-            .scan(
-                ScanOptions.scanOptions()
-                    .match("users:[0-9]*")
-                    .build())
-            .timeout(Duration.ofSeconds(5L))
-            .switchIfEmpty(Mono.empty())
-            .map((matchedUUID) -> matchedUUID.split(":")[1].trim())
-            .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null));
+        return
+        this.redisTemplate
+            .opsForHash()
+            .values(getUserHashKey())
+            .map(String::valueOf);
     }
 
     /** 获取某个用户的最近联系人列表。*/
@@ -74,7 +73,10 @@ public class UserRedisServiceImpl implements UserRedisService
         return
         this.redisTemplate.opsForList()
             .range(getContactKey(uuid), 0L, -1L)
-            .map((name) -> (String) name);
+            .map((name) -> (String) name)
+            .timeout(Duration.ofSeconds(3L))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null));
     }
 
     /**
@@ -201,7 +203,7 @@ public class UserRedisServiceImpl implements UserRedisService
         return Mono.defer(() -> {
             final String uuid          = generateAsSting();
             final String userKey       = getUserKey(uuid);
-            final String userSetKey    = getUserSetKey();
+            final String userHashKey    = getUserHashKey();
             final String inventoryKey  = getInventoryKey(uuid);
             final float NEW_USER_FUNDS = 12500.00F;
             final String weaponsString
@@ -216,7 +218,7 @@ public class UserRedisServiceImpl implements UserRedisService
                         this.redisScriptTemplate
                             .execute(
                                 script,
-                                List.of(userKey, userSetKey, inventoryKey),
+                                List.of(userKey, userHashKey, inventoryKey),
                                 USER_NAME_FIELD,
                                 USER_FUNDS_FIELD,
                                 USER_GUILD_FIELD,
@@ -569,7 +571,7 @@ public class UserRedisServiceImpl implements UserRedisService
     public Mono<Void> deleteUser(String uuid)
     {
         final String userKey      = getUserKey(uuid);
-        final String userSetKey   = getUserSetKey();
+        final String userHashKey  = getUserHashKey();
         final String inventoryKey = getInventoryKey(uuid);
 
         return this.luaScriptReader
@@ -577,7 +579,7 @@ public class UserRedisServiceImpl implements UserRedisService
                    .flatMap((script) ->
                        this.redisScriptTemplate.execute(
                            script,
-                           List.of(userKey, userSetKey, inventoryKey),
+                           List.of(userKey, userHashKey, inventoryKey),
                            USER_NAME_FIELD, USER_FUNDS_FIELD)
                        .timeout(Duration.ofSeconds(5L))
                        .next()
