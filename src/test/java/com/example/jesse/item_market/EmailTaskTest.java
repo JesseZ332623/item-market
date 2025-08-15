@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -59,12 +60,14 @@ public class EmailTaskTest
             );
     }
 
-    /** 随机生成指定数量的邮件内容。*/
+    /** 随机时间间隔生成无限数量的邮件内容。*/
     private @NotNull Flux<EmailContent>
     generateInfEmailContent()
     {
         return
-        Flux.interval(Duration.ofMillis(10L))
+        Flux.interval(Duration.ofMillis(
+            ThreadLocalRandom.current()
+                             .nextLong(100L, 500L)))
             .flatMap((ignore) -> {
 
                 String userId = UUIDGenerator.generateAsSting();
@@ -72,7 +75,7 @@ public class EmailTaskTest
                 return
                 EmailContent.formWithAttachment(
                     userId, userId + "@gmail.com",
-                    "You have a new message!",
+                    "An important message for you!",
                     "Best regards to user: " + userId,
                     "E:\\图片素材\\趴窗的普拉纳.jpg"
                 );
@@ -83,17 +86,21 @@ public class EmailTaskTest
     {
         return
         this.generateInfEmailContent()
-            .flatMap((content) ->
-                this.emailSendTask
-                    .addEmailTask(
-                        content,
-                        this.randomPriority(),
-                        this.randomDelay(10L)
+            .buffer(50)
+            .flatMap((contents) ->
+                Flux.fromIterable(contents)
+                    .flatMap((content) ->
+                        this.emailSendTask
+                            .addEmailTask(
+                                content,
+                                this.randomPriority(),
+                                this.randomDelay(10L)
                     )
+                )
             ).then();
     }
 
-    /** 邮件任务执行器较高负载 10 分钟运行测试。*/
+    /** 邮件任务执行器较高负载 1 分钟运行测试。（编译时快速通过）*/
     @Test
     @Order(1)
     public void TestPollAndExecute() throws InterruptedException
@@ -104,11 +111,12 @@ public class EmailTaskTest
             this.emailSendTask.startExcuteEmailSenderTask()
         ).subscribe();
 
-        Thread.sleep(Duration.ofMinutes(10L));
+        Thread.sleep(Duration.ofMinutes(1L));
     }
 
+    /** 最后调用 FLUSHALL ASYNC 命令，清空整个 Redis。*/
     @Test
-    @Order(3)
+    @Order(2)
     public void redisFlushAllAsync()
     {
         this.redisTemplate.getConnectionFactory()
