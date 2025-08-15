@@ -19,9 +19,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
-import static java.util.concurrent.TimeUnit.MICROSECONDS;
-
 /**
  * EmailContent 类的序列化（Serialization）和
  * 反序列化（Deserialization）测试。
@@ -136,32 +133,6 @@ public class EmailTaskSerializationTest
                 );
             }
         });
-    }
-
-    @Test
-    @Order(3)
-    public void
-    getTimestampFromRedis()
-    {
-        Flux.interval(Duration.ofSeconds(2L))
-            .flatMap((ignore) ->
-                this.redisTemplate
-                    .getConnectionFactory()
-                    .getReactiveConnection()
-                    .serverCommands()
-                    .time(MICROSECONDS)
-                    .timeout(Duration.ofSeconds(3L))
-                    .map((time) -> {
-                        double stamp = (time.doubleValue() / (1000.00 * 1000.00));
-                        return Math.round(stamp * 1_000_000) / 1_000_000.0;
-                    })
-                    .cache(Duration.ofSeconds(1L))
-                    .doOnSuccess((timestamp) ->
-                        System.out.printf("%f%n", timestamp))
-                    .onErrorResume((exception) ->
-                        redisGenericErrorHandel(exception, null)))
-            .take(10)
-            .blockLast();
     }
 
     @Test
