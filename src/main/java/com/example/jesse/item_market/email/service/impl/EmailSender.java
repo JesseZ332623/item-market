@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.function.Tuple2;
@@ -40,7 +41,7 @@ import static java.lang.String.format;
 /** 封装了 javax.mail 库的响应式邮件发送器。*/
 @Data
 @Slf4j
-@Component
+@Service(value = "ReleaseImpl")
 public class EmailSender implements EmailSenderInterface
 {
     /** 提供邮箱服务的域名。*/
