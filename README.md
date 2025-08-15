@@ -13,47 +13,51 @@ Redis 命令、Redis Lua 脚本的编写以及 Redis 分布式锁和 Redis 公�
 
 ---
 
-### 项目 Redis key 详见：
+### 项目 Redis key 详见
 
-[Redis key](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/utils/KeyConcat.java)
+[Redis key concat](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/utils/KeyConcat.java)
 
-### Lua 脚本读取器详见：
+### 项目 Redis key 示例图详见
+
+[Redis key example](https://github.com/JesseZ332623/item-market/blob/main/documents/redis-key-describe.png)
+
+### Lua 脚本读取器详见
 
 [Lua script reader](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/utils/LuaScriptReader.java)
 
-### 项目通用 Redis 错误处理详见：
+### 项目通用 Redis 错误处理详见
 
 [Redis generic error handle](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/errorhandle/RedisErrorHandle.java)
 
-### 用户、商品 UID 生成器详见：
+### 用户、商品 UID 生成器详见
 
 [ID generator](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/utils/UUIDGenerator.java)
 
-### 用户操作实现详见：
+### 用户操作实现详见
 
 [User redis service](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/user/impl/UserRedisServiceImpl.java)
 
-### 市场交易操作实现详见：
+### 市场交易操作实现详见
 
 [Market redis service](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/market/impl/MarketServiceImpl.java)
 
-### 邮件任务执行器实现详见：
+### 邮件任务执行器实现详见
 
 [Email Send Task Executor](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/email_send_task/impl/EmailSendTaskImpl.java)
 
-### 项目所有操作测试类详见：
+### 项目所有操作测试类详见
 
 [Project operator test](https://github.com/JesseZ332623/item-market/blob/main/src/test/java/com/example/jesse/item_market)
 
-### 响应式 Redis 分布式锁实现详见：
+### 响应式 Redis 分布式锁实现详见
 
 [Reactive Distributed Lock](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/lock/impl/RedisLockImpl.java)
 
-### 响应式 Redis 公平信号量实现详见：
+### 响应式 Redis 公平信号量实现详见
 
 [Reactive Fair Semaphore](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/semaphore/impl/FairSemaphoreImpl.java)
 
-### 项目 Lua 脚本详见：
+### 项目 Lua 脚本详见
 
 [User Script](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/user-operator)
 
