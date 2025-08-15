@@ -48,7 +48,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
 
     /** 响应式邮件发送器 */
     @Autowired
-    @Qualifier("ReleaseImpl")
+    @Qualifier(value = "createEmailSender")
     private EmailSenderInterface emailSender;
 
     /** Redis 分布式锁。*/
@@ -56,7 +56,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
     private RedisLock redisLock;
 
     /**
-     * 供本执行器使用的专用线程池，参数如下：。
+     * 供本执行器使用的专用线程池，参数如下：
      *
      * <ul>
      *     <li>池中工作线程数量：4 线程</li>
