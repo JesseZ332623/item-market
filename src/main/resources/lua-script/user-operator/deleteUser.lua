@@ -3,14 +3,14 @@
 
     KEYS:
         userKey          用户键（如：users:114934523722107784）
-        userSetKey       用户集合键（用来保证用户名的唯一性）
+        userHashKey      用户哈希校验键（用用户名映射他的 UUID，用来保证用户名的唯一性）
         inventoryKey     用户包裹键（如：inventories:114935169325609268）
     ARGV:
         userNameField    用户名哈希字段名
         userFundsField   用户资金哈希字段名
 ]]
 local userKey      = KEYS[1]
-local userSetKey   = KEYS[2]
+local userHashKey   = KEYS[2]
 local inventoryKey = KEYS[3]
 
 local userNameField  = ARGV[1]
@@ -25,10 +25,10 @@ if not userName then
     return '{"result": "USER_NOT_FOUND"}'
 end
 
--- 删除用户集合中的用户名
-redis.call('SREM', userSetKey, userName)
+-- 删除用户哈希校验中的用户名
+redis.call('HDEL', userHashKey, userName)
 
--- 添加删除用户集合的审计信息
+-- 添加删除用户哈希校验的审计信息
 redis.call(
     'XADD',
     'user-name:log', '*',
