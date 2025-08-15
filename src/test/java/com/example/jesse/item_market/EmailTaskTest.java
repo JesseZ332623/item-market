@@ -67,7 +67,7 @@ public class EmailTaskTest
         return
         Flux.interval(Duration.ofMillis(
             ThreadLocalRandom.current()
-                             .nextLong(100L, 500L)))
+                             .nextLong(500L, 800L)))
             .flatMap((ignore) -> {
 
                 String userId = UUIDGenerator.generateAsSting();
@@ -86,7 +86,7 @@ public class EmailTaskTest
     {
         return
         this.generateInfEmailContent()
-            .buffer(50)
+            .buffer(5)
             .flatMap((contents) ->
                 Flux.fromIterable(contents)
                     .flatMap((content) ->
