@@ -8,7 +8,8 @@
 
 很多情况下，Redis 数据库仅仅是一个项目的中间层（比如存储用户 Session，缓存关系数据库数据等）。
 但有些项目（比如网页游戏）是只依靠 Redis 来存储数据的，所以以《Redis in action》这本书提供的范例为基础，
-顺便熟悉 Redis 的数据结构（String, List, Set, Zset, Hash, Stream, Geo, Bitmap）、Redis 命令和 Redis Lua 脚本的编写。
+顺便熟悉 Redis 的数据结构（String, List, Set, Zset, Hash, Stream, Geo, Bitmap）、
+Redis 命令、Redis Lua 脚本的编写以及 Redis 分布式锁和 Redis 公平信号量的实现。
 
 ---
 
@@ -65,5 +66,7 @@
 [Distributed Fair Semaphore](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/semaphore-operator)
 
 ---
+
+### [GNU GENERAL PUBLIC LICENCE](https://github.com/JesseZ332623/item-market/blob/main/LICENSE)
 
 ### Latest Update date: 2025-08-15
