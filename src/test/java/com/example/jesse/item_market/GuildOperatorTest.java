@@ -4,6 +4,7 @@ import com.example.jesse.item_market.dto.UserLogDTO;
 import com.example.jesse.item_market.guild.GuildRedisService;
 import com.example.jesse.item_market.user.UserRedisService;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,6 @@ import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import reactor.core.publisher.Flux;
 
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -169,6 +169,51 @@ public class GuildOperatorTest
             .blockLast();
     }
 
+    /**
+     * 将一个列表平均分成 n 个子列表（尽可能均匀分配）。
+     * 如果无法整除，多余的元素会均匀分布在前几个子列表中。
+     *
+     * @param namesList 原始列表
+     * @param splits    要分成的子列表数量
+     *
+     * @return          分割后的子列表集合
+     *
+     * @throws IllegalArgumentException 如果 splits <= 0 或列表无法分割时抛出
+     */
+    @Contract(pure = true)
+    private @NotNull List<List<String>>
+    splitAvgList(@NotNull List<String> namesList, int splits)
+    {
+        if (splits <= 0)
+        {
+            throw new IllegalArgumentException(
+                "Param splits must be positive!"
+            );
+        }
+
+        int size = namesList.size();
+        if (size < splits)
+        {
+            throw new IllegalArgumentException(
+                String.format("list size (%d) < splits (%d)", size, splits)
+            );
+        }
+
+        List<List<String>> result = new ArrayList<>();
+        int eachLen   = size / splits;      // 基础长度
+        int remainder = size % splits;      // 剩余长度（需要额外分配）
+
+        int start = 0;
+        for (int i = 0; i < splits; i++)
+        {
+            int end = start + eachLen + ((i < remainder) ? 1 : 0);
+            result.add(namesList.subList(start, end));
+            start = end;
+        }
+
+        return result;
+    }
+
     @Order(1)
     @Test
     public void TestFetchAutoCompleteMember()
@@ -186,7 +231,7 @@ public class GuildOperatorTest
         List<String> uuidOfFePrefix
             = createUsersFromList(NAME_PREFIX_BY_Fe);
 
-        List<String> uuidOfFeLsafix
+        List<String> uuidOfLsaPrefix
             = createUsersFromList(NAME_PREFIX_BY_Lsa);
 
         List<String> uuidOfPePrefix
@@ -199,7 +244,7 @@ public class GuildOperatorTest
                 uuidsOfMiPrefix.getFirst(),
                 uuidOfAltPrefix.getFirst(),
                 uuidOfFePrefix.getFirst(),
-                uuidOfFeLsafix.getFirst(),
+                uuidOfLsaPrefix.getFirst(),
                 uuidOfPePrefix.getFirst()
             ), TEST_GUILD_NAME
         );
@@ -211,28 +256,20 @@ public class GuildOperatorTest
                 uuidsOfMiPrefix.stream().skip(1L).toList(),
                 uuidOfAltPrefix.stream().skip(1L).toList(),
                 uuidOfFePrefix.stream().skip(1L).toList(),
-                uuidOfFeLsafix.stream().skip(1L).toList(),
+                uuidOfLsaPrefix.stream().skip(1L).toList(),
                 uuidOfPePrefix.stream().skip(1L).toList()
             );
 
-        int namesAvgLen = mergedNames.size() / 3;
+        var results
+            = this.splitAvgList(mergedNames, TEST_GUILD_NAME.size());
 
-        List<String> partA = mergedNames.subList(0, namesAvgLen);
-        List<String> partB = mergedNames.subList(namesAvgLen, namesAvgLen * 2);
-        List<String> partC = mergedNames.subList(namesAvgLen * 2, mergedNames.size());
-
-        // 3. 令各个用户列表除第一个用户之外的其他所有用户，加入对应的公会
-        joinGuildFromListExpectHead(
-            partA, TEST_GUILD_NAME.getFirst()
-        );
-
-        joinGuildFromListExpectHead(
-            partB, TEST_GUILD_NAME.get(1)
-        );
-
-        joinGuildFromListExpectHead(
-            partC, TEST_GUILD_NAME.get(2)
-        );
+        for (int index = 0; index < TEST_GUILD_NAME.size(); ++index)
+        {
+            this.joinGuildFromListExpectHead(
+                results.get(index),
+                TEST_GUILD_NAME.get(index)
+            );
+        }
 
         // 4. 最关键的测试环节
         // testFetchAutoCompleteMemberHandle(TEST_GUILD_NAME, TEST_PREFIX);
@@ -268,6 +305,7 @@ public class GuildOperatorTest
             ).blockLast();
     }
 
+    /** 修剪掉字符串两端的双引号。*/
     private String
     trimStringHandle(@NotNull String string)
     {
@@ -283,12 +321,6 @@ public class GuildOperatorTest
     public void TestLogStreamRead()
     {
         final String userLogKey = "users:log";
-
-        Function<String, String> trimString
-            = (str) ->
-                str.contains("\"")
-                    ? str.replace("\"", "").trim()
-                    : str;
 
         List<UserLogDTO> userOperatorLogs
             = this.stringRedisTemplate
