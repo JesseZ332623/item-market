@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.Limit;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -28,6 +29,8 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.example.jesse.item_market.email_send_task.dto.TaskPriority.CRITICAL;
+import static com.example.jesse.item_market.email_send_task.dto.TaskPriority.LOW;
 import static com.example.jesse.item_market.email_send_task.dto.TaskType.*;
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static java.lang.String.format;
@@ -45,6 +48,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
 
     /** 响应式邮件发送器 */
     @Autowired
+    @Qualifier("ReleaseImpl")
     private EmailSenderInterface emailSender;
 
     /** Redis 分布式锁。*/
@@ -79,13 +83,13 @@ public class EmailSendTaskImpl implements EmailSenderTask
     private static final AtomicBoolean EXCUTE_EMAIL_SEND_TASK_STOP
         = new AtomicBoolean(true);
 
-    /** 在本类实例被销毁前，需要保证哪些执行的任务都停止。 */
+    /** 在本类实例被销毁前，需要保证哪些执行的任务都停止。*/
     @PreDestroy
     void gracefulShoutDown()
     {
+        log.info("Call gracefulShoutDown()");
         this.stopExcuteEmailSenderTask();
         this.stopPollDelayZset();
-        this.emailTaskScheduler.dispose();
     }
 
     /**
@@ -398,6 +402,28 @@ public class EmailSendTaskImpl implements EmailSenderTask
                     "MoveToPriorityZSet_Lock" + "-" + emailTask.getTaskIdentifier(),
                     25L, 10L,
                     (identifier) -> {
+
+                        /*
+                         * 检查优先有序集合的负载，
+                         * 如果集合里积压了 1000 个以上的任务（负载超高），
+                         * 就可以考虑暂缓提交，让优先有序集合先消费手头的任务。
+                         */
+                        Mono<Void> checkPriorityTaskZsetLoad
+                            = this.redisTemplate.opsForZSet()
+                                  .count(
+                                      prioritTaskyZsetKey,
+                                      Range.open(LOW.getPriorityScore(), CRITICAL.getPriorityScore()))
+                                  .flatMap((size) -> {
+                                      if (size >= 1000) {
+                                          log.info("");
+                                          return
+                                          Mono.delay(Duration.ofSeconds(10L))
+                                              .then(Mono.empty());
+                                      }
+                                      else { return Mono.empty(); }
+                                  });
+
+
                         /* 从延迟邮件任务有序集合中移除 */
                         Mono<Void> removeFromDelayTaskZset
                             = this.redisTemplate
@@ -412,10 +438,11 @@ public class EmailSendTaskImpl implements EmailSenderTask
                                   .add(prioritTaskyZsetKey, emailTaskJson, emailTask.getPriorityScore())
                                   .then();
 
-                        /* 上述两个操作之间无依赖关系，调用 Mono.when() 并行执行。*/
-                        return
-                        Mono.when(removeFromDelayTaskZset, addToPriorityTaskZset)
-                            .timeout(Duration.ofSeconds(5L));
+                        return checkPriorityTaskZsetLoad.then(
+                            /* 上述两个操作之间无依赖关系，调用 Mono.when() 并行执行。*/
+                            Mono.when(removeFromDelayTaskZset, addToPriorityTaskZset)
+                                .timeout(Duration.ofSeconds(5L))
+                        );
                     }
                 );
         })
