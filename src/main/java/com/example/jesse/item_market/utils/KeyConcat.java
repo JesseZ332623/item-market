@@ -69,10 +69,10 @@ final public class KeyConcat
         return INVENTORY_PREFIX + uuid;
     }
 
-    /** 用户集合键。（示例：user-name:user-name-set）*/
+    /** 用户姓名与 UUID 哈希键。（user-name:user-name-hash）*/
     @Contract(pure = true)
     public static @NotNull String
-    getUserSetKey() { return "user-name:user-name-set"; }
+    getUserHashKey() { return "user-name:user-name-hash"; }
 
     /**
      * 为即将上架至市场的武器生成一个 UUID。
