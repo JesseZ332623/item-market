@@ -1,12 +1,14 @@
 package com.example.jesse.item_market.user.impl;
 
-import com.example.jesse.item_market.user.UserRedisService;
+import com.example.jesse.item_market.persistence.entities.Inventory;
+import com.example.jesse.item_market.user.UserService;
 import com.example.jesse.item_market.user.Weapons;
 import com.example.jesse.item_market.user.dto.UserInfo;
+import com.example.jesse.item_market.user.persistence.UserPersistenceService;
 import com.example.jesse.item_market.utils.LimitRandomElement;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
-import com.example.jesse.item_market.errorhandle.ProjectRedisOperatorException;
+import com.example.jesse.item_market.errorhandle.ProjectOperatorException;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -22,16 +25,16 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static com.example.jesse.item_market.utils.KeyConcat.*;
-import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.errorhandle.ProjectErrorHandle.projectGenericErrorHandel;
 import static com.example.jesse.item_market.utils.KeyConcat.getUserHashKey;
 import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsSting;
 import static java.lang.String.format;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPERATOR;
 
-/** 用户 Redis 操作实现类。*/
+/** 用户操作实现类。*/
 @Slf4j
 @Service
-public class UserRedisServiceImpl implements UserRedisService
+public class UserServiceImpl implements UserService
 {
     /** 十八般武器列表。*/
     private final static List<Weapons> WEAPONS
@@ -50,6 +53,10 @@ public class UserRedisServiceImpl implements UserRedisService
     @Autowired
     private
     ReactiveRedisTemplate<String, LuaOperatorResult> redisScriptTemplate;
+
+    @Autowired
+    private
+    UserPersistenceService userPersistenceService;
 
     /**
      * 获取所有用户的 UUID
@@ -76,7 +83,7 @@ public class UserRedisServiceImpl implements UserRedisService
             .map((name) -> (String) name)
             .timeout(Duration.ofSeconds(3L))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null));
+                projectGenericErrorHandel(exception, null));
     }
 
     /**
@@ -102,7 +109,7 @@ public class UserRedisServiceImpl implements UserRedisService
             .filter((contact) ->
                 (contact.startsWith(prefix.toLowerCase(Locale.ROOT))))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null));
+                projectGenericErrorHandel(exception, null));
     }
 
     @Override
@@ -114,14 +121,14 @@ public class UserRedisServiceImpl implements UserRedisService
             .timeout(Duration.ofSeconds(5L))
             .switchIfEmpty(
                 Mono.error(
-                    new ProjectRedisOperatorException(
+                    new ProjectOperatorException(
                         format("User: %s weapons not found!", uuid), null
                     )
                 )
             )
             .map((weapon) -> Weapons.valueOf((String) weapon))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null));
+                projectGenericErrorHandel(exception, null));
     }
 
     /** 获取某个用户上架至市场的所有武器。*/
@@ -201,11 +208,11 @@ public class UserRedisServiceImpl implements UserRedisService
     addNewUser(String userName)
     {
         return Mono.defer(() -> {
-            final String uuid          = generateAsSting();
-            final String userKey       = getUserKey(uuid);
+            final String uuid           = generateAsSting();
+            final String userKey        = getUserKey(uuid);
             final String userHashKey    = getUserHashKey();
-            final String inventoryKey  = getInventoryKey(uuid);
-            final float NEW_USER_FUNDS = 12500.00F;
+            final String inventoryKey   = getInventoryKey(uuid);
+            final double NEW_USER_FUNDS = 12500.00;
             final String weaponsString
                 = LimitRandomElement.getRandomLimit(WEAPONS, 6)
                         .stream()
@@ -237,8 +244,20 @@ public class UserRedisServiceImpl implements UserRedisService
                                         )
                                     );
                                 }
-                                else if ("SUCCESS".equals(result.getResult())) {
-                                    return Mono.just(uuid);
+                                else if ("SUCCESS".equals(result.getResult()))
+                                {
+                                    return
+                                    this.userPersistenceService
+                                        .persistanceNewUser(
+                                            uuid, userName,
+                                            BigDecimal.valueOf(NEW_USER_FUNDS),
+                                            Arrays.stream(weaponsString.trim().split(" "))
+                                                  .map((weapon) ->
+                                                      new Inventory()
+                                                          .setItemName(weapon)
+                                                          .setUuid(uuid))
+                                                .toList())
+                                        .then(Mono.just(uuid));
                                 }
                                 else
                                 {
@@ -250,7 +269,7 @@ public class UserRedisServiceImpl implements UserRedisService
                                 }
                             })
                             .onErrorResume((exception) ->
-                                redisGenericErrorHandel(exception, null)
+                                projectGenericErrorHandel(exception, null)
                             )
                     );
         });
@@ -299,7 +318,10 @@ public class UserRedisServiceImpl implements UserRedisService
                                     )
                                 );
 
-                            case "SUCCESS" -> Mono.empty();
+                            case "SUCCESS" ->
+                                // 持久化存储
+                                this.userPersistenceService
+                                    .persistanceNewContact(uuid, contactName, USER_MAX_CONTACT);
 
                             case null, default ->
                                 Mono.error(
@@ -311,7 +333,7 @@ public class UserRedisServiceImpl implements UserRedisService
                     )
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -363,7 +385,7 @@ public class UserRedisServiceImpl implements UserRedisService
                     )
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -387,7 +409,7 @@ public class UserRedisServiceImpl implements UserRedisService
                     .next()
                     .timeout(Duration.ofSeconds(5L))
                     .onErrorResume((exception) ->
-                        redisGenericErrorHandel(exception, null))
+                        projectGenericErrorHandel(exception, null))
                     .then()
             );
     }
@@ -432,7 +454,7 @@ public class UserRedisServiceImpl implements UserRedisService
                         }
                     ))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -496,7 +518,7 @@ public class UserRedisServiceImpl implements UserRedisService
                                     );
                             })
                         .onErrorResume((exception) ->
-                            redisGenericErrorHandel(exception, null))
+                            projectGenericErrorHandel(exception, null))
                 );
         });
     }
@@ -547,7 +569,7 @@ public class UserRedisServiceImpl implements UserRedisService
                         }
                     ))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -609,7 +631,7 @@ public class UserRedisServiceImpl implements UserRedisService
                                );
                        })
                        .onErrorResume((exception) ->
-                           redisGenericErrorHandel(exception, null))
+                           projectGenericErrorHandel(exception, null))
                        .then()
                    );
     }
