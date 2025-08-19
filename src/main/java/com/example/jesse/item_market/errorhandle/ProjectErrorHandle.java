@@ -11,23 +11,24 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.serializer.SerializationException;
 import reactor.core.publisher.Mono;
 
-/** 本项目所有的 Redis 操作中，通用的错误处理方法工具类。*/
+/** 本项目所有的操作中，通用的错误处理方法工具类。*/
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-final public class RedisErrorHandle
+final public class ProjectErrorHandle
 {
     /**
-     * 本项目所有的 Redis 操作中，通用的错误处理方法。
+     * 本项目所有的操作中，通用的错误处理方法。
      *
      * @param <T> 要发布数据或异常类型
      *
-     * @param exception     Redis 操作中可能抛出的异常
+     * @param exception     操作中可能抛出的异常
      * @param fallbackValue 出错后可能需要返回的默认值
+     *                     （如果填 null 则表示向上传递异常）
      *
      * @return 发布异常或者默认值的 Mono
      */
     public static <T> @NotNull Mono<T>
-    redisGenericErrorHandel(@NotNull Throwable exception, T fallbackValue)
+    projectGenericErrorHandel(@NotNull Throwable exception, T fallbackValue)
     {
         switch (exception)
         {
@@ -53,15 +54,21 @@ final public class RedisErrorHandle
                 log.error(
                     "Spring data access failed!", dataAccessException);
 
+            // 新增 MySQL 持久化操作出现的异常
+            case PresistenceException presistenceException ->
+                log.error(
+                    "MySQL presistence operator failed!",
+                    presistenceException);
+
             default ->
-                log.error("Redis operator exception!", exception);
+                log.error("Unexpect exception!", exception);
         }
 
         /* 若 fallbackValue 的值为空，异常会 re-throw 然后向上传递。*/
         return (fallbackValue != null)
             ? Mono.just(fallbackValue)
             : Mono.error(
-                new ProjectRedisOperatorException(
+                new ProjectOperatorException(
                     exception.getMessage(), exception
                 )
             );
