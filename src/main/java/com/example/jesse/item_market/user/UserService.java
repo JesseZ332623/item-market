@@ -5,8 +5,8 @@ import org.jetbrains.annotations.NotNull;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/** 用户 Redis 操作接口类。*/
-public interface UserRedisService
+/** 用户操作接口类。*/
+public interface UserService
 {
     /** 获取所有用户的 UUID。*/
     Flux<String> getAllUserUUID();
