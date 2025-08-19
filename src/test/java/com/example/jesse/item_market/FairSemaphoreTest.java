@@ -1,7 +1,7 @@
 package com.example.jesse.item_market;
 
 import com.example.jesse.item_market.semaphore.FairSemaphore;
-import com.example.jesse.item_market.user.UserRedisService;
+import com.example.jesse.item_market.user.UserService;
 import com.example.jesse.item_market.user.Weapons;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -45,7 +45,7 @@ public class FairSemaphoreTest
     private FairSemaphore fairSemaphore;
 
     @Autowired
-    private UserRedisService userRedisService;
+    private UserService userRedisService;
 
     /** 初始化一些用户，和他们的包裹。*/
     private void CreateSomeNewUsers()
