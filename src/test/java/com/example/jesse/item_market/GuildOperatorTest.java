@@ -2,7 +2,7 @@ package com.example.jesse.item_market;
 
 import com.example.jesse.item_market.dto.UserLogDTO;
 import com.example.jesse.item_market.guild.GuildRedisService;
-import com.example.jesse.item_market.user.UserRedisService;
+import com.example.jesse.item_market.user.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -35,7 +35,7 @@ public class GuildOperatorTest
 
     @Autowired
     private
-    UserRedisService userRedisService;
+    UserService userRedisService;
 
     @Autowired
     private
