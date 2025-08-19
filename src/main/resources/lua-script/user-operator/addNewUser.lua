@@ -76,7 +76,7 @@ redis.call(
     'XADD',
     'users:log', '*',
     'event', 'NEW_USER_CREATE',
-    'uuid', "\"" ..uuid.. "\"",
+    'uuid', uuid,
     'user-name', newUserName,
     'user-funds', newUserFunds,
     'timestamp', timestamp
