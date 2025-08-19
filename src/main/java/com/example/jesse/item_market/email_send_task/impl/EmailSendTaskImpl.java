@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.example.jesse.item_market.email_send_task.dto.TaskPriority.CRITICAL;
 import static com.example.jesse.item_market.email_send_task.dto.TaskPriority.LOW;
 import static com.example.jesse.item_market.email_send_task.dto.TaskType.*;
-import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.errorhandle.ProjectErrorHandle.projectGenericErrorHandel;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
@@ -133,7 +133,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
             })
             .cache(Duration.ofSeconds(1L))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null));
+                projectGenericErrorHandel(exception, null));
     }
 
     /** 启动延迟任务有序集合轮询。*/
@@ -248,7 +248,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
             .timeout(Duration.ofSeconds(5L))
             .onErrorResume(
                 (exception) ->
-                    redisGenericErrorHandel(exception, null));
+                    projectGenericErrorHandel(exception, null));
     }
 
     /**
@@ -284,7 +284,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
             .map((task) -> (String) task)
             .flatMap(this::executeEmailSendAndRemove)
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .repeat(() -> !EXCUTE_EMAIL_SEND_TASK_STOP.get())
             .then();
     }
@@ -332,7 +332,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
                             .then()
                     )
                     .onErrorResume((exception) ->
-                        redisGenericErrorHandel(exception, null)))
+                        projectGenericErrorHandel(exception, null)))
             .repeat(() -> !POLL_DELAY_ZSET_STOP.get())
             .then();
     }
@@ -447,7 +447,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
                 );
         })
         .onErrorResume((exception) ->
-            redisGenericErrorHandel(exception, null));
+            projectGenericErrorHandel(exception, null));
     }
 
     /**
@@ -537,7 +537,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
 
         })
         .onErrorResume((exception) ->
-            redisGenericErrorHandel(exception, null));
+            projectGenericErrorHandel(exception, null));
     }
 
     /**
@@ -558,7 +558,7 @@ public class EmailSendTaskImpl implements EmailSenderTask
             .leftPush(deadthQueueKey, emailTaskJson)
             .timeout(Duration.ofSeconds(5L))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 }
