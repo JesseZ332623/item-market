@@ -19,12 +19,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 
-import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.errorhandle.ProjectErrorHandle.projectGenericErrorHandel;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.SEMAPHORE_OPERATOR;
 import static java.lang.String.format;
 
 /**
- * <p>Redis 公平信号量实现。</p>
+ * <p>Redis 公平信号量（分布式互斥锁）实现。</p>
  *
  * <i>
  *  需要强调的是，
@@ -121,7 +121,7 @@ public class FairSemaphoreImpl implements FairSemaphore
                     )
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null));
+                projectGenericErrorHandel(exception, null));
     }
 
     /**
@@ -166,7 +166,7 @@ public class FairSemaphoreImpl implements FairSemaphore
                     )
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -216,7 +216,7 @@ public class FairSemaphoreImpl implements FairSemaphore
                     )
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
