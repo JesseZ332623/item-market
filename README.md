@@ -13,6 +13,20 @@ Redis 命令、Redis Lua 脚本的编写以及 Redis 分布式锁和 Redis 公�
 
 ---
 
+## 2025-08-19 persistence 分支需求
+
+虽然本项目已经启用了 Redis 上的 Snap-Shot 和 AOF 持久化策略（完全够用了），
+但是在增加一个同步数据到 MySQL 上的持久化策略也不是不行，
+想法很丰满，现实却很骨感，在 MySQL 持久化的过程中遇到很多问题
+在 Redis 上能优雅实现的需求放在 MySQL 中就笨拙许多，所以现在暂时提交部分实现，
+后续会尝试完整实现剩余的部分。
+
+### 项目数据表 E-ER 图详见
+
+[Project E-ER](https://github.com/JesseZ332623/item-market/blob/persistence/documents/mysql-eer.png)
+
+---
+
 ### 项目 Redis key 详见
 
 [Redis key concat](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/utils/KeyConcat.java)
@@ -73,4 +87,4 @@ Redis 命令、Redis Lua 脚本的编写以及 Redis 分布式锁和 Redis 公�
 
 ### [GNU GENERAL PUBLIC LICENCE](https://github.com/JesseZ332623/item-market/blob/main/LICENSE)
 
-### Latest Update date: 2025-08-15
+### Latest Update date: 2025-08-19
