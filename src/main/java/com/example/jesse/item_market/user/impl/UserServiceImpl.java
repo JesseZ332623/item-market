@@ -54,6 +54,7 @@ public class UserServiceImpl implements UserService
     private
     ReactiveRedisTemplate<String, LuaOperatorResult> redisScriptTemplate;
 
+    /** MySQL 用户操作数据持久化接口。*/
     @Autowired
     private
     UserPersistenceService userPersistenceService;
