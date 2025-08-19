@@ -17,7 +17,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.List;
 
-import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.errorhandle.ProjectErrorHandle.projectGenericErrorHandel;
 import static com.example.jesse.item_market.utils.KeyConcat.*;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.MARKET_OPERATOR;
 import static java.lang.String.format;
@@ -172,7 +172,7 @@ public class MarketServiceImpl implements MarketService
                     }
 
                     default -> {
-                        return redisGenericErrorHandel(
+                        return projectGenericErrorHandel(
                             exception, null
                         );
                     }
