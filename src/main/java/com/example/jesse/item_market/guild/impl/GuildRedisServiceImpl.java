@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.errorhandle.ProjectErrorHandle.projectGenericErrorHandel;
 import static com.example.jesse.item_market.utils.LuaScriptOperatorType.GUILD_OPERATOR;
 import static com.example.jesse.item_market.utils.KeyConcat.*;
 import static java.lang.String.format;
@@ -96,7 +96,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
             })
             .timeout(Duration.ofSeconds(3L))
             .onErrorResume(exception ->
-                redisGenericErrorHandel(exception, null));
+                projectGenericErrorHandel(exception, null));
     }
 
     /** 按公会名搜索该工会 Leader 的 uuid。*/
@@ -117,7 +117,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
             .timeout(Duration.ofSeconds(3L))
             .doOnSuccess(System.out::println)
             .onErrorResume(exception ->
-                redisGenericErrorHandel(exception, null));
+                projectGenericErrorHandel(exception, null));
     }
 
     /**
@@ -195,7 +195,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
                         })
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -276,7 +276,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
                                 );
                         }))
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -359,7 +359,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
                         })
             )
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null))
+                projectGenericErrorHandel(exception, null))
             .then();
     }
 
@@ -402,7 +402,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
                            .timeout(Duration.ofSeconds(3L));
             })
             .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, Collections.emptyList())
+                projectGenericErrorHandel(exception, Collections.emptyList())
             );
     }
 
@@ -560,7 +560,7 @@ public class GuildRedisServiceImpl implements GuildRedisService
                 })
                 .timeout(Duration.ofSeconds(30L))
                 .onErrorResume((exception) ->
-                    redisGenericErrorHandel(exception, null));
+                    projectGenericErrorHandel(exception, null));
             }
         );
     }
