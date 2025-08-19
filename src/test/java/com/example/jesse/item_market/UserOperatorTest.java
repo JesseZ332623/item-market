@@ -89,6 +89,7 @@ public class UserOperatorTest
                                 .filter(
                                     (userName) ->
                                         !userName.equals(userInfo.getUserName()))
+                                .sorted()
                                 .toList();
 
                         return
