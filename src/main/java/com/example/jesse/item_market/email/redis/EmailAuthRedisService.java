@@ -13,7 +13,7 @@ import java.time.Duration;
 
 import static com.example.jesse.item_market.email.authkey.EmailAuthRedisKey.ENTERPRISE_EMAIL_ADDRESS;
 import static com.example.jesse.item_market.email.authkey.EmailAuthRedisKey.SERVICE_AUTH_CODE;
-import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.errorhandle.ProjectErrorHandle.projectGenericErrorHandel;
 
 /** 邮箱服务授权码服务类。*/
 @Slf4j
@@ -68,7 +68,7 @@ public class EmailAuthRedisService
                 )
                 .timeout(Duration.ofSeconds(5L))
                 .onErrorResume((exception) ->
-                    redisGenericErrorHandel(exception, null));
+                    projectGenericErrorHandel(exception, null));
         }).subscribe();
     }
 }
