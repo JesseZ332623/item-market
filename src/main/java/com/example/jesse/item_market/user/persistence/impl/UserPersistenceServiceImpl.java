@@ -1,7 +1,6 @@
 package com.example.jesse.item_market.user.persistence.impl;
 
 import com.example.jesse.item_market.errorhandle.PresistenceException;
-import com.example.jesse.item_market.persistence.entities.Contact;
 import com.example.jesse.item_market.persistence.entities.Inventory;
 import com.example.jesse.item_market.persistence.repos.ContactRepository;
 import com.example.jesse.item_market.persistence.repos.GameUserRepository;
@@ -10,12 +9,13 @@ import com.example.jesse.item_market.user.persistence.UserPersistenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 
 /** MySQL 用户操作数据持久化实现。*/
@@ -96,27 +96,14 @@ public class UserPersistenceServiceImpl implements UserPersistenceService
      * @return 不发布任何数据的 Mono，表示操作整体是否完成
      */
     @Override
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Mono<Void>
     persistanceNewContact(String uuid, String contactName, int limits)
     {
         return
         this.contactRepository
-            .save(
-                new Contact().setContactName(contactName)
-                             .setUuid(uuid)
-                             .setCreatedTimeStamp(Instant.now()))
-            .as(this.transactionalOperator::transactional)
-            .then(
-                this.contactRepository
-                    .findContactAmountByUUID(uuid)
-                    .filter((amounts) -> amounts > limits)
-                    .flatMap((amounts) ->
-                        this.contactRepository
-                            .trimUserContactsByLimits(uuid, limits)
-                    )
-                .as(this.transactionalOperator::transactional)
-            )
-            .timeout(Duration.ofSeconds(8L))
+            .atomicUpsertContact(uuid, contactName, limits)
+            .timeout(Duration.ofSeconds(15L))
             .onErrorResume((exception) ->
                 Mono.error(
                     new PresistenceException(
