@@ -2,7 +2,7 @@ package com.example.jesse.item_market;
 
 import com.example.jesse.item_market.guild.GuildRedisService;
 import com.example.jesse.item_market.market.MarketService;
-import com.example.jesse.item_market.user.UserRedisService;
+import com.example.jesse.item_market.user.UserService;
 import com.example.jesse.item_market.user.Weapons;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.MethodOrderer;
@@ -18,6 +18,7 @@ import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -26,7 +27,7 @@ import java.util.stream.IntStream;
 import static com.example.jesse.item_market.utils.LimitRandomElement.getRandomLimit;
 import static com.example.jesse.item_market.utils.TestUtils.SELECT_AMOUNT;
 
-/** 用户、市场 Redis 操作测试。*/
+/** 用户、市场操作测试。*/
 @Slf4j
 @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -37,7 +38,7 @@ public class UserOperatorTest
     ReactiveRedisTemplate<String, Object> redisTemplate;
 
     @Autowired
-    private UserRedisService userRedisService;
+    private UserService userRedisService;
 
     @Autowired
     private MarketService marketService;
@@ -94,8 +95,16 @@ public class UserOperatorTest
                         Flux.fromIterable(listWithoutSelf)
                             .flatMap((userName) ->
                                 this.userRedisService
-                                    .addNewContact(uuid, userName))
-                            .then();
+                                    .addNewContact(uuid, userName)
+                                    .then(
+                                        Mono.delay(
+                                            Duration.ofMillis(
+                                                ThreadLocalRandom.current()
+                                                    .nextLong(10L, 50L)
+                                            )
+                                        )
+                                    )
+                            ).then();
                     })
             ).blockLast();
     }
