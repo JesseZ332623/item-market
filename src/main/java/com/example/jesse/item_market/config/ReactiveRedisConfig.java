@@ -88,8 +88,8 @@ public class ReactiveRedisConfig
             = new StringRedisSerializer();
 
         /* Redis 值使用 Jackson 进行序列化。 */
-        Jackson2JsonRedisSerializer<Object> valueSerializer
-            = new Jackson2JsonRedisSerializer<>(Object.class);
+        RedisSerializer<Object> valueSerializer
+            = new GenericJackson2JsonRedisSerializer();
 
         /* Redis Hash Key / Value 的序列化。 */
         RedisSerializationContext.RedisSerializationContextBuilder<String, Object>

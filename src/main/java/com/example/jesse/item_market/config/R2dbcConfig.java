@@ -46,8 +46,8 @@ public class R2dbcConfig
                                     .tcpKeepAlive(true)
                                     /* 设置连接超时 */
                                     .connectTimeout(Duration.ofSeconds(30L))
-                                    /* 禁用 SSL */
-                                    .sslMode(SslMode.DISABLED)
+                                    /* 启用 SSL */
+                                    .sslMode(SslMode.REQUIRED)
                                     /* 不自动检测扩展 */
                                     .autodetectExtensions(false)
                                     /* 禁用 Nagle 算法 */
