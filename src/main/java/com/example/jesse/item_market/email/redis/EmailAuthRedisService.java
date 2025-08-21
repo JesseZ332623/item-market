@@ -38,9 +38,9 @@ public class EmailAuthRedisService
 
     /**
      * 后续开启定时任务，
-     * 每 1 秒执行一次，确保发送人信息，授权码一直都在。
+     * 每 10 秒执行一次，确保发送人信息，授权码一直都在。
      */
-    @Scheduled(fixedRate = 1000)
+    @Scheduled(fixedRate = 10000)
     public void readEmailPublisherInfo()
     {
         Mono.zip(
@@ -60,13 +60,14 @@ public class EmailAuthRedisService
                 .findEmailPublisherInfoById(1)
                 .flatMap(
                     (publisherInfo) ->
-                        this.redisTemplate.opsForValue()
-                            .set(ENTERPRISE_EMAIL_ADDRESS.toString(), publisherInfo.getEmail())
-                            .then(this.redisTemplate.opsForValue()
+                        Mono.when(
+                            this.redisTemplate.opsForValue()
+                                .set(ENTERPRISE_EMAIL_ADDRESS.toString(), publisherInfo.getEmail()),
+                            this.redisTemplate.opsForValue()
                                 .set(SERVICE_AUTH_CODE.toString(), publisherInfo.getEmailAuthCode())
-                            )
+                        )
                 )
-                .timeout(Duration.ofSeconds(5L))
+                .timeout(Duration.ofSeconds(8L))
                 .onErrorResume((exception) ->
                     redisGenericErrorHandel(exception, null));
         }).subscribe();
