@@ -22,7 +22,7 @@ public class IpToCityID
     public String toString()
     {
         return "[" +
-                    "Start IP: " + Ipv4Converter.IntToIPV4((int) this.startIpScore) +
+                    "Start IP: " + Ipv4Converter.intToIPv4((int) this.startIpScore) +
                     " Local ID: " + this.localId
                 + "]";
     }
