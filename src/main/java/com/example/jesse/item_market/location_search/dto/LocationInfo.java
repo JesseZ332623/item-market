@@ -1,5 +1,7 @@
 package com.example.jesse.item_market.location_search.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 import lombok.experimental.Accessors;
 
@@ -9,9 +11,12 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 @EqualsAndHashCode
 @NoArgsConstructor(access  = AccessLevel.PUBLIC)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PUBLIC)
+@JsonIgnoreProperties(ignoreUnknown = true)       // 忽略 JSON 中的未知字段
 public class LocationInfo
 {
+    @JsonIgnore
+    private String locationId;  // 城市 ID（该字段不需要序列化）
     private String country;     // 国名
     private String region;      // 地区名
     private String city;        // 城市名
