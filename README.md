@@ -57,6 +57,10 @@ Redis 命令、Redis Lua 脚本的编写以及 Redis 分布式锁和 Redis 公�
 
 [Reactive Fair Semaphore](https://github.com/JesseZ332623/item-market/blob/main/src/main/java/com/example/jesse/item_market/semaphore/impl/FairSemaphoreImpl.java)
 
+### Redis Hash 分片（Sharing）操作实操详见
+
+[Hash Sharing](https://github.com/JesseZ332623/item-market/tree/main/src/main/java/com/example/jesse/item_market/location_search)
+
 ### 项目 Lua 脚本详见
 
 [User Script](https://github.com/JesseZ332623/item-market/tree/main/src/main/resources/lua-script/user-operator)
@@ -73,4 +77,4 @@ Redis 命令、Redis Lua 脚本的编写以及 Redis 分布式锁和 Redis 公�
 
 ### [GNU GENERAL PUBLIC LICENCE](https://github.com/JesseZ332623/item-market/blob/main/LICENSE)
 
-### Latest Update date: 2025-08-15
+### Latest Update date: 2025-08-22
