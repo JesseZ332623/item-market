@@ -10,12 +10,14 @@ import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuples;
 
 import java.time.Duration;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.location_search.uitls.ShardingOperator.*;
 import static java.lang.String.format;
 
 /** 通过 IP 查询具体地理信息的实现。*/
@@ -23,14 +25,6 @@ import static java.lang.String.format;
 @Service
 public class LocationSearcherImpl implements LocationSearcher
 {
-    /** 以城市 ID 为成员，IPv4 地址为分数的有序集合键。*/
-    private static final String blocksRedisKey
-        = "location:ip_to_cityid";
-
-    /** 以城市 ID 为哈希键，对应的城市详细地理信息为哈希值的散列表键。*/
-    private static final String locationRedisKey
-        = "location:cityid_to_locationinfo";
-
     /** 字符串序列化 Redis 模板。*/
     @Autowired
     private
@@ -97,19 +91,30 @@ public class LocationSearcherImpl implements LocationSearcher
                         blocksRedisKey, ipNumber, ipNumber)))
             .timeout(Duration.ofSeconds(3L))
             .next()
-            .map((res) ->
-                res.split("_")[0].trim())
-            .flatMap((locationId) ->
+            .map((res) -> {
+                // 城市 ID
+                String localId
+                    = res.split("_")[0].trim();
+
+                // 该 ID 对应的 sharding-key
+                String shardingKey
+                    = getShardingKey(Integer.parseInt(localId));
+
+                return
+                Tuples.of(shardingKey, localId);
+            })
+            .flatMap((keyInfo) ->
                 this.redisTemplate
                     .opsForHash()
-                    .get(locationRedisKey, locationId)
+                    .get(keyInfo.getT1(), keyInfo.getT2())
                     .switchIfEmpty(
                         this.buildNotFoundError(
                             format(
                                 "HGET %s %s",
-                                locationRedisKey, locationId)))
+                                keyInfo.getT1(), keyInfo.getT2())))
                     .timeout(Duration.ofSeconds(3L))
-                    .map((res) -> (LocationInfo) res))
+                    .map((res) ->
+                        ((LocationInfo) res).setLocationId(keyInfo.getT2())))
         .onErrorResume((exception) ->
             redisGenericErrorHandel(exception, null));
     }

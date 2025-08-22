@@ -22,12 +22,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
+import static com.example.jesse.item_market.location_search.uitls.ShardingOperator.*;
 import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsHex;
 import static java.lang.String.format;
 
@@ -47,14 +49,6 @@ final public class GeoLiteCityReader
     /** CSV 文件在文件系统中的路径。*/
     @Value("${app.csv-file-path}")
     private String csvFilePath;
-
-    /** 以城市 ID 为成员，IPv4 地址为分数的有序集合键。*/
-    private static final String blocksRedisKey
-        = "location:ip_to_cityid";
-
-    /** 以城市 ID 为哈希键，对应的城市详细地理信息为哈希值的散列表键。*/
-    private static final String locationRedisKey
-        = "location:cityid_to_locationinfo";
 
     /** 每一批数据的缓冲区大小。*/
     private static final int MAX_BUFFER_SIZE = 30000;
@@ -170,26 +164,52 @@ final public class GeoLiteCityReader
                             .setAreaCode(Integer.parseInt(setDefaultForInteger(record.get("areaCode"))));
                     })
                     .sequential()
-                    .buffer(MAX_BUFFER_SIZE)
-                    .flatMap((records) -> {
-                        Map<String, LocationInfo> recordsMap
-                            = IntStream.range(0, records.size())
-                            .boxed()
-                            .collect(
-                                Collectors.toMap(
-                                    (i) -> records.get(i).getLocationId(),
-                                    records::get
-                                )
-                            );
+                    /*
+                     * 在存储每一个 LocationInfo 实例至 Redis 之前，
+                     * 先计算它将会去到哪个分片，并将这个结果收集成一个：
+                     *      Map<String, Collection<LocationInfo>> 类型
+                     * 键代表 Redis 的 sharding-key，值代表该分片将要存储的所有数据。
+                     */
+                    .collectMultimap(
+                        (info) ->
+                            getShardingKey(Integer.parseInt(info.getLocationId())),
+                        (info) -> info)
+                    /*
+                     * 将每一个分片中的数据数据部分转化成
+                     *      Map<String, LocationInfo> 类型
+                     * 键代表 locationId，值则是 LocationInfo 的实例，
+                     * 对这个 Map 执行 putAll() 批量操作，能大幅减少与 Redis 的网络往返时间。
+                     */
+                    .flatMapMany((shardingMap) ->
+                        Flux.fromIterable(shardingMap.entrySet())
+                            /* 终极优化：并行！*/
+                            .parallel()
+                            .runOn(Schedulers.parallel())
+                            .flatMap((entry) -> {
+                                /* 该分片的 reids key */
+                                final String shardingKey = entry.getKey();
+                                /* 该分片的所有数据 */
+                                final Collection<LocationInfo> infoInShard = entry.getValue();
 
-                        return
-                        this.redisTemplate
-                            .opsForHash()
-                            .putAll(locationRedisKey, recordsMap)
-                            .timeout(Duration.ofSeconds(30L))
-                            .onErrorResume((excption) ->
-                                redisGenericErrorHandel(excption, null));
-                    }).then();
+                                Map<String, LocationInfo> records
+                                    = infoInShard.stream()
+                                        .collect(
+                                            Collectors.toMap(
+                                                LocationInfo::getLocationId,
+                                                // 等价于 (locationInfo) -> locationInfo
+                                                Function.identity()
+                                            )
+                                        );
+
+                                return
+                                this.redisTemplate
+                                    .opsForHash()
+                                    .putAll(shardingKey, records)
+                                    .timeout(Duration.ofSeconds(20L))
+                                    .onErrorResume((exception) ->
+                                        redisGenericErrorHandel(exception, null));
+                            })
+                    ).then();
             });
     }
 
@@ -415,19 +435,15 @@ final public class GeoLiteCityReader
                     case "filesystem" ->
                     {
                         return
-                        Mono.when(
-                            this.readBlocksFromFile(),
-                            this.readLocationFromFile()
-                        );
+                        this.readBlocksFromFile()
+                            .then(this.readLocationFromFile());
                     }
 
                     case "classpath" ->
                     {
                         return
-                        Mono.when(
-                            this.readBlocksFromClassPath(),
-                            this.readLocationFromClassPath()
-                        );
+                        this.readBlocksFromClassPath()
+                            .then(this.readLocationFromClassPath());
                     }
 
                     case null, default ->
@@ -437,7 +453,7 @@ final public class GeoLiteCityReader
                             new UnsupportedOperationException(
                                 format(
                                     "Unexpect csv read mode! (Which is: %s)" +
-                                        "Load csv file failed!",
+                                    "Load csv file failed!",
                                     this.csvReadMode
                                 )
                             )
