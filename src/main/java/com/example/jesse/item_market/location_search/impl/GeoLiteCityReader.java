@@ -132,7 +132,7 @@ final public class GeoLiteCityReader
 
     /**
      * 从 GeoLiteCity-Location.csv 文件中构建出 csvParser 后，
-     * 正式的开始读取并存入 Redis。
+     * 正式的开始读取并存入 Redis（采用分片策略读取）。
      */
     private @NotNull Mono<Void>
     saveLocationFromParser(CSVParser csvParser)
@@ -350,7 +350,7 @@ final public class GeoLiteCityReader
      * 将所有数据处理并保存到 Redis 中去，Redis 数据设计如下：
      *
      * <ul>
-     *     <li>Key: location:cityid_to_cityname</li>
+     *     <li>Key: location:cityid_to_locationinfo:{@literal sharding-id}</li>
      *     <li>Type: Hash</li>
      *     <li>Hash-Key: cityid</li>
      *     <li>
@@ -387,7 +387,7 @@ final public class GeoLiteCityReader
      * 将所有数据处理并保存到 Redis 中去，Redis 数据设计如下：
      *
      * <ul>
-     *     <li>Key: location:cityid_to_cityname</li>
+     *     <li>Key: location:cityid_to_locationinfo:{@literal sharding-id}</li>
      *     <li>Type: Hash</li>
      *     <li>Hash-Key: cityid</li>
      *     <li>
