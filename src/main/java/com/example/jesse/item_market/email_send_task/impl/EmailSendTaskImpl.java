@@ -5,19 +5,19 @@ import com.example.jesse.item_market.email.exception.EmailException;
 import com.example.jesse.item_market.email.service.EmailSenderInterface;
 import com.example.jesse.item_market.email_send_task.EmailSenderTask;
 import com.example.jesse.item_market.email_send_task.dto.EmailTaskDTO;
-import com.example.jesse.item_market.email_send_task.dto.TaskPriority;
-import com.example.jesse.item_market.email_send_task.dto.TaskType;
 import com.example.jesse.item_market.lock.RedisLock;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.SmartLifecycle;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.Limit;
+import org.springframework.data.redis.connection.ReactiveServerCommands;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.stereotype.Service;
@@ -29,9 +29,9 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.example.jesse.item_market.email_send_task.dto.TaskPriority.CRITICAL;
-import static com.example.jesse.item_market.email_send_task.dto.TaskPriority.LOW;
-import static com.example.jesse.item_market.email_send_task.dto.TaskType.*;
+import static com.example.jesse.item_market.email_send_task.impl.TaskPriority.CRITICAL;
+import static com.example.jesse.item_market.email_send_task.impl.TaskPriority.LOW;
+import static com.example.jesse.item_market.email_send_task.impl.TaskType.*;
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -39,7 +39,7 @@ import static java.util.concurrent.TimeUnit.MICROSECONDS;
 /** 基于 Redis 的邮件任务执行器实现。*/
 @Slf4j
 @Service
-public class EmailSendTaskImpl implements EmailSenderTask
+public class EmailSendTaskImpl implements EmailSenderTask, SmartLifecycle
 {
     /** 通用响应式 Redis 模板。*/
     @Autowired
@@ -55,6 +55,10 @@ public class EmailSendTaskImpl implements EmailSenderTask
     @Autowired
     private RedisLock redisLock;
 
+    /** Jackson 序列化 / 反序列化器。*/
+    @Autowired
+    private ObjectMapper mapper;
+
     /**
      * 供本执行器使用的专用线程池，参数如下：
      *
@@ -63,17 +67,22 @@ public class EmailSendTaskImpl implements EmailSenderTask
      *     <li>任务队列容量：    256 任务</li>
      *     <li>工作线程名前缀：  email-task</li>
      *     <li>空闲线程存活时间：60 秒</li>
-     *     <li>开启守护线程</li>
+     *     <li>关闭守护线程（每一个邮件任务都应该正确发出）</li>
      * </ul>
      */
     private final Scheduler emailTaskScheduler
         = Schedulers.newBoundedElastic(
-            4, 256, "email-task",
-            60, true
+        4, 256, "email-task",
+        60, false
     );
 
-    /** Jackson 序列化 / 反序列化器。*/
-    private final ObjectMapper mapper = new ObjectMapper();
+    /** Redis 响应式命令执行器。*/
+    private
+    ReactiveServerCommands serverCommands;
+
+    /** 这个 Bean 是否允许标志位。*/
+    private final AtomicBoolean RUNNING
+        = new AtomicBoolean(false);
 
     /** 延迟任务有序集合轮询 启动/关闭 标志位。*/
     private static final AtomicBoolean POLL_DELAY_ZSET_STOP
@@ -83,14 +92,50 @@ public class EmailSendTaskImpl implements EmailSenderTask
     private static final AtomicBoolean EXCUTE_EMAIL_SEND_TASK_STOP
         = new AtomicBoolean(true);
 
-    /** 在本类实例被销毁前，需要保证哪些执行的任务都停止。*/
-    @PreDestroy
-    void gracefulShoutDown()
+    /** 依赖注入完毕后，获取 Redis 响应式命令执行器。*/
+    @PostConstruct
+    void getServerConmmand()
     {
-        log.info("Call gracefulShoutDown()");
-        this.stopExcuteEmailSenderTask();
-        this.stopPollDelayZset();
+        this.serverCommands
+            = this.redisTemplate
+                  .getConnectionFactory()
+                  .getReactiveConnection()
+                  .serverCommands();
     }
+
+    /**
+     * 服务是手动启动/关闭的，
+     * 因此这里除了翻转 RUNNING 标志位之外，什么都不做。
+     */
+    @Override
+    public void start()
+    {
+        if (RUNNING.compareAndSet(false, true)) {
+            log.info("[SmartLifecycle] Email send task started.");
+        }
+    }
+
+    /** 在本类实例被销毁前，需要保证那些正在执行的任务都正确停止。*/
+    @Override
+    public void stop()
+    {
+        if (RUNNING.compareAndSet(true, false))
+        {
+            log.info("[SmartLifecycle] Email send task stopped.");
+            this.stopExcuteEmailSenderTask();
+            this.stopPollDelayZset();
+            this.emailTaskScheduler.dispose();
+        }
+    }
+
+    /** 还在运行吗？*/
+    @Override
+    public boolean
+    isRunning() { return RUNNING.get(); }
+
+    /** 管理生命周期，令其最后被创建，最先被执行。*/
+    @Override
+    public int getPhase() { return Integer.MAX_VALUE; }
 
     /**
      * 组合邮件任务键，有一下几种可能：
@@ -120,20 +165,43 @@ public class EmailSendTaskImpl implements EmailSenderTask
     private @NotNull Mono<Double>
     getRedisTimestamp()
     {
+        if (!RUNNING.get())
+        {
+            return
+            Mono.error(
+                new IllegalStateException("Application is shutting down...")
+            );
+        }
+
         return
-        this.redisTemplate
-            .getConnectionFactory()
-            .getReactiveConnection()
-            .serverCommands()
+        this.serverCommands
             .time(MICROSECONDS)
             .timeout(Duration.ofSeconds(3L))
             .map((time) -> {
                 double stamp = (time.doubleValue() / (1000.00 * 1000.00));
                 return Math.round(stamp * 1_000_000) / 1_000_000.0;
             })
-            .cache(Duration.ofSeconds(1L))
-            .onErrorResume((exception) ->
-                redisGenericErrorHandel(exception, null));
+            .onErrorResume((exception) -> {
+                if (!RUNNING.get())
+                {
+                    return
+                    Mono.error(
+                        new IllegalStateException("Application is shutting down...")
+                    );
+                }
+
+                return
+                redisGenericErrorHandel(exception, null);
+            });
+    }
+
+    /** 检查邮件任务是否已经启动。*/
+    @Override
+    public boolean isTaskStarted()
+    {
+        return
+        !POLL_DELAY_ZSET_STOP.get() &&
+        !EXCUTE_EMAIL_SEND_TASK_STOP.get();
     }
 
     /** 启动延迟任务有序集合轮询。*/
@@ -355,7 +423,8 @@ public class EmailSendTaskImpl implements EmailSenderTask
      *     "to" : "Peter-Griffin233@gmail.com",
      *     "subject" : "用户：Peter-Griffin 请查收您的验证码。",
      *     "textBody" : "用户：Peter-Griffin 您的验证码是：[10351615]，请在 5 分钟内完成验证，超过 5 分钟后验证码自动失效！",
-     *     "attachmentPath" : null
+     *     "attachmentName" : null,
+     *     "attachmentData" : null
      *   }
      * }
      * </code></pre>
@@ -468,7 +537,8 @@ public class EmailSendTaskImpl implements EmailSenderTask
      *     "to" : "Peter-Griffin233@gmail.com",
      *     "subject" : "用户：Peter-Griffin 请查收您的验证码。",
      *     "textBody" : "用户：Peter-Griffin 您的验证码是：[10351615]，请在 5 分钟内完成验证，超过 5 分钟后验证码自动失效！",
-     *     "attachmentPath" : null
+     *     "attachmentName" : null,
+     *     "attachmentData" : null
      *   }
      * }
      * </code></pre>
