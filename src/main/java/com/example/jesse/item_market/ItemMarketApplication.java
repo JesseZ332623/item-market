@@ -2,9 +2,11 @@ package com.example.jesse.item_market;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /** 应用启动类。*/
+@EnableKafka
 @EnableScheduling
 @SpringBootApplication
 public class ItemMarketApplication
