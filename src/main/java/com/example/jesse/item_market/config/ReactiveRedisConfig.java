@@ -1,9 +1,11 @@
 package com.example.jesse.item_market.config;
 
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.SocketOptions;
 import io.lettuce.core.TimeoutOptions;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -64,7 +66,7 @@ public class ReactiveRedisConfig
                     ).build()
             )
             .commandTimeout(Duration.ofSeconds(10L))  // 命令超时时间
-            .shutdownTimeout(Duration.ofSeconds(3L))  // 关闭超时时间
+            .shutdownTimeout(Duration.ofSeconds(5L))  // 关闭超时时间
             .build();
 
         // 3. 创建连接工厂
@@ -81,7 +83,10 @@ public class ReactiveRedisConfig
      */
     @Bean
     public ReactiveRedisTemplate<String, Object>
-    reactiveRedisTemplate(ReactiveRedisConnectionFactory factory)
+    reactiveRedisTemplate(
+        ReactiveRedisConnectionFactory factory,
+        @Qualifier("redisObjectMapper") ObjectMapper objectMapper
+    )
     {
         /* Redis 键使用字符串进行序列化。 */
         RedisSerializer<String> keySerializer
@@ -89,7 +94,7 @@ public class ReactiveRedisConfig
 
         /* Redis 值使用 Jackson 进行序列化。 */
         RedisSerializer<Object> valueSerializer
-            = new GenericJackson2JsonRedisSerializer();
+            = new GenericJackson2JsonRedisSerializer(objectMapper);
 
         /* Redis Hash Key / Value 的序列化。 */
         RedisSerializationContext.RedisSerializationContextBuilder<String, Object>
@@ -109,12 +114,15 @@ public class ReactiveRedisConfig
     /** 专门用于执行 Lua 脚本的 ReactiveRedisTemplate。*/
     @Bean
     public ReactiveRedisTemplate<String, LuaOperatorResult>
-    marketTransactionRedisTemplate(ReactiveRedisConnectionFactory factory)
+    marketTransactionRedisTemplate(
+        ReactiveRedisConnectionFactory factory,
+        ObjectMapper objectMapper
+    )
     {
         RedisSerializer<String> keySerializer = new StringRedisSerializer();
 
         Jackson2JsonRedisSerializer<LuaOperatorResult> valueSerializer
-            = new Jackson2JsonRedisSerializer<>(LuaOperatorResult.class);
+            = new Jackson2JsonRedisSerializer<>(objectMapper, LuaOperatorResult.class);
 
         RedisSerializationContext<String, LuaOperatorResult> context
             = RedisSerializationContext.<String, LuaOperatorResult>
