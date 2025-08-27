@@ -1,4 +1,4 @@
-package com.example.jesse.item_market.email_send_task.dto;
+package com.example.jesse.item_market.email_send_task.impl;
 
 import lombok.Getter;
 

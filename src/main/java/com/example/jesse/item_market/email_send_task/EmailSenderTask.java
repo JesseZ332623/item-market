@@ -1,7 +1,7 @@
 package com.example.jesse.item_market.email_send_task;
 
 import com.example.jesse.item_market.email.dto.EmailContent;
-import com.example.jesse.item_market.email_send_task.dto.TaskPriority;
+import com.example.jesse.item_market.email_send_task.impl.TaskPriority;
 import org.springframework.data.redis.serializer.SerializationException;
 import reactor.core.publisher.Mono;
 
@@ -35,4 +35,7 @@ public interface EmailSenderTask
 
     /** 关闭优先有序集合的邮件发送任务。*/
     void stopExcuteEmailSenderTask();
+
+    /** 检查邮件任务是否已经启动。*/
+    boolean isTaskStarted();
 }

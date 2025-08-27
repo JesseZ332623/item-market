@@ -1,6 +1,7 @@
 package com.example.jesse.item_market.email_send_task.dto;
 
 import com.example.jesse.item_market.email.dto.EmailContent;
+import com.example.jesse.item_market.email_send_task.impl.TaskPriority;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import lombok.*;
 import org.jetbrains.annotations.NotNull;

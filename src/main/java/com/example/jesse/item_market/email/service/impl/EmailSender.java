@@ -17,15 +17,13 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.function.Tuple2;
 
+import javax.activation.DataHandler;
 import javax.mail.*;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
-import java.io.File;
+import javax.mail.internet.*;
+import javax.mail.util.ByteArrayDataSource;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.Properties;
 
 import com.example.jesse.item_market.email.exception.EmailException;
@@ -268,12 +266,22 @@ public class EmailSender implements EmailSenderInterface
         multipart.addBodyPart(textPart);
 
         // 若 content 内的附件路径不为空，则需要添加附件
-        if (content.getAttachmentPath() != null)
+        if (content.hasAttachment())
         {
-            File attachment = getAttachment(content.getAttachmentPath());
+            ByteArrayDataSource attachment
+                = getAttachment(
+                    Objects.requireNonNull(content.getAttachmentName()),
+                    Objects.requireNonNull(content.getAttachmentData())
+                );
 
             MimeBodyPart attachmentPart = new MimeBodyPart();
-            attachmentPart.attachFile(attachment);
+            attachmentPart.setDataHandler(new DataHandler(attachment));
+            attachmentPart.setFileName(
+                MimeUtility.encodeText(
+                    content.getAttachmentName(),
+                    "utf-8", null
+                )
+            );
 
             multipart.addBodyPart(attachmentPart);
         }
@@ -281,26 +289,14 @@ public class EmailSender implements EmailSenderInterface
         return multipart;
     }
 
-    /** 按照提供的附件路径构建附件。*/
-    private static @NotNull File
-    getAttachment(@NotNull String attachmentPath)
+    /** 按照提供的附件名和附件数据构建附件。*/
+    private static @NotNull ByteArrayDataSource
+    getAttachment(
+        @NotNull String name, byte @NotNull [] data)
     {
-        File attachment = Path.of(attachmentPath)
-                              .normalize()
-                              .toFile();
-
-        // 检查附件路径是否存在
-        if (!attachment.exists())
-        {
-            throw new EmailException(
-                INVALID_CONTENT,
-                format("Attachment path: %s not found!", attachmentPath),
-                null
-            );
-        }
 
         // 检查附件的大小有没有超过最大值
-        if (attachment.length() > MAX_ATTACHMENT_SIZE)
+        if (data.length > MAX_ATTACHMENT_SIZE)
         {
             throw new EmailException(
                 INVALID_CONTENT,
@@ -310,7 +306,11 @@ public class EmailSender implements EmailSenderInterface
             );
         }
 
-        return attachment;
+        return new
+        ByteArrayDataSource(
+            data,
+            MimeTypeGetter.getMimeTypeFromExtention(name)
+        );
     }
 
     /**
@@ -355,7 +355,7 @@ public class EmailSender implements EmailSenderInterface
 
                 message.setSubject(content.getSubject());
 
-                if (content.getAttachmentPath() == null) {
+                if (!content.hasAttachment()) {
                     message.setText(content.getTextBody());
                 }
                 else {
