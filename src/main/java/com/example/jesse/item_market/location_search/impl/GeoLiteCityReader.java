@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -139,7 +140,10 @@ final public class GeoLiteCityReader
     {
         return
         this.redisTemplate
-            .hasKey(locationRedisKey)
+            /* 由于数据采用了分片策略，判断数据是否存在的策略也要变。*/
+            .scan(ScanOptions.scanOptions().match(locationRedisKey + ":*").build())
+            .collectList()
+            .map((keys) -> !keys.isEmpty())
             .flatMap((isExist) -> {
                 if (isExist) {
                     log.info("saveLocationFromParser() Key {} exist!", locationRedisKey);
