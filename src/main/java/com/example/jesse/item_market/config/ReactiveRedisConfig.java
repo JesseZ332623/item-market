@@ -61,11 +61,11 @@ public class ReactiveRedisConfig
                     )
                     .timeoutOptions(
                         TimeoutOptions.builder()
-                            .fixedTimeout(Duration.ofSeconds(10L)) // 操作超时
+                            .fixedTimeout(Duration.ofSeconds(15L)) // 操作超时
                             .build()
                     ).build()
             )
-            .commandTimeout(Duration.ofSeconds(10L))  // 命令超时时间
+            .commandTimeout(Duration.ofSeconds(15L))  // 命令超时时间
             .shutdownTimeout(Duration.ofSeconds(5L))  // 关闭超时时间
             .build();
 
