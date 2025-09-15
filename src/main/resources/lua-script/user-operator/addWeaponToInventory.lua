@@ -16,6 +16,13 @@ local weapon       = ARGV[1]
 local uuid     = string.match(inventoryKey, ":([^:]+)")
 local userName = redis.call('HGET', userKey, "\"name\"")
 
+-- 先检查用户是否存在，避免错误添加
+if 
+    userName == false
+then
+    return '{"result": "USER_NOT_FOUND"}'
+end
+
 local timestamp = redis.call('TIME')[1]
 
 redis.call('RPUSH', inventoryKey, weapon)
