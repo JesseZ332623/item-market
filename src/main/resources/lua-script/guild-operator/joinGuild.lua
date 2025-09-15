@@ -30,12 +30,14 @@ local timestamp = redis.call('TIME')[1]
 local userGuildName = redis.call('HGET', userKey, userGuildField)
 local userGuildRole = redis.call('HGET', userKey, userGuildRoleField)
 
+local noGuildInfo = "\"---\""
+
 -- 检查用户的公会信息，
 -- 对于已经加入公会的用户，
 -- 不允许再加入其他公会或者重复加入公会
 if
-    userGuildName ~= '---' or
-    userGuildRole ~= '---'
+    userGuildName ~= noGuildInfo or
+    userGuildRole ~= noGuildInfo
 then
     return '{"result": "ALREADY_JOINED"}'
 end
