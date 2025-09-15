@@ -53,8 +53,16 @@ final public class RedisErrorHandle
                 log.error(
                     "Spring data access failed!", dataAccessException);
 
-            default ->
-                log.error("Redis operator exception!", exception);
+            /*
+             * 对于上述系统级别异常之外的业务异常，
+             * 需要保留原始异常，不得 re-throw 成 ProjectRedisOperatorException
+             */
+            default -> {
+                return
+                (fallbackValue != null)
+                    ? Mono.just(fallbackValue)
+                    : Mono.error(exception);
+            }
         }
 
         /* 若 fallbackValue 的值为空，异常会 re-throw 然后向上传递。*/
