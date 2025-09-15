@@ -487,7 +487,7 @@ public class UserServiceImpl implements UserService
                     NoSuchElementException.class, 
                     (exception) ->
                         this.responseBuilder
-                            .BAD_REQUEST(exception.getMessage(), exception) 
+                            .NOT_FOUND(exception.getMessage(), exception)
                 )
                 .onErrorResume(
                     (exception) -> 
@@ -588,6 +588,16 @@ public class UserServiceImpl implements UserService
                                 weapon, uuid
                             ), null, null
                         ))
+                .onErrorResume(
+                    NoSuchElementException.class,
+                    (exception) ->
+                        this.responseBuilder.NOT_FOUND(
+                            String.format(
+                                "User %s unlist weapon: %s on market!",
+                                uuid, weapon.getItemName()
+                            ), exception
+                        )
+                )
                 .onErrorResume((exception) ->
                     this.responseBuilder
                         .INTERNAL_SERVER_ERROR(
@@ -622,6 +632,11 @@ public class UserServiceImpl implements UserService
                             null, null
                         ))
                     .onErrorResume(
+                        NoSuchElementException.class,
+                        (exception) ->
+                            this.responseBuilder
+                                .NOT_FOUND(exception.getMessage(), exception))
+                    .onErrorResume(
                         IllegalArgumentException.class, 
                         (exception) ->
                             this.responseBuilder
@@ -631,14 +646,14 @@ public class UserServiceImpl implements UserService
                             this.responseBuilder
                                 .INTERNAL_SERVER_ERROR(
                                     String.format("Faild to delete user: %s!", uuid), 
-                                    exception
-                        )
-                    ))
+                                    exception)
+                    )
+            )
             .onErrorResume(
-            IllegalArgumentException.class,
-            (exception) ->
-                this.responseBuilder
-                    .BAD_REQUEST(exception.getMessage(), exception)
+                IllegalArgumentException.class,
+                (exception) ->
+                    this.responseBuilder
+                        .BAD_REQUEST(exception.getMessage(), exception)
             );
     }
 }
