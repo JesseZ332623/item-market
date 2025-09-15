@@ -62,8 +62,8 @@ redis.call(
     'HSET', newUserKey,
     userNameField, newUserName,
     userFundsField, newUserFunds,
-    userGuildField, '---',              -- 新用户没有加入任何公会
-    userGuildRoleField, '---'
+    userGuildField, "\"---\"",              -- 新用户没有加入任何公会
+    userGuildRoleField, "\"---\""
 )
 
 -- 为该用户添加初始武器

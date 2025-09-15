@@ -27,11 +27,13 @@ local timestamp = redis.call('TIME')[1]
 local userGuildName = redis.call('HGET', userKey, userGuildField)
 local userGuildRole = redis.call('HGET', userKey, userGuildRoleField)
 
+local noGuildInfo = "\"---\""
+
 -- 检查用户的公会信息，
 -- 对于未加入任何公会的用户，禁止后续的操作
 if
-    userGuildName == '---' or
-    userGuildRole == '---'
+    userGuildName == noGuildInfo or
+    userGuildRole == noGuildInfo
 then
     return '{"result": "NOT_JOIN_ANY_GUILD"}'
 end
@@ -77,8 +79,8 @@ redis.call(
 -- 把用户信息中的公会部分抹掉
 redis.call(
     'HSET', userKey,
-    userGuildField,     '---',
-    userGuildRoleField, '---'
+    userGuildField,     noGuildInfo,
+    userGuildRoleField, noGuildInfo
 )
 redis.call(
     'XADD',

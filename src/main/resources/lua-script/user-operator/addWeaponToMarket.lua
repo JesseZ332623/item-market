@@ -31,7 +31,7 @@ local userName = redis.call('HGET', userKey, "\"name\"")
 -- 从用户包裹中移除指定武器
 if redis.call('LREM', sellerInventoryListKey, 1, weaponName) == 0
 then
-    return '{"result", "INVENTORY_REM_FAILED"}'
+    return '{"result": "INVENTORY_REM_FAILED"}'
 end
 
 -- 用户包裹数据的审计信息

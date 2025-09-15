@@ -19,7 +19,12 @@ local timestamp = redis.call('TIME')[1]
 
 local userName = redis.call('HGET', userKey, "\"name\"")
 
-redis.call('LREM', inventoryKey, 1, weaponName)
+if 
+    redis.call('LREM', inventoryKey, 1, weaponName) == 0
+then
+    return '{"result": "WEAPON_NOT_FOUND"}'
+end
+
 redis.call(
     'XADD',
     'inventories:log', '*',

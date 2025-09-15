@@ -36,7 +36,11 @@ repeat
     local weaponHashKeys = result[2]
 
     for i, weaponKey in ipairs(weaponHashKeys) do
-        local fields = redis.call('HMGET', weaponKey, 'weapon-name', 'seller')
+        local fields 
+            = redis.call(
+                'HMGET', weaponKey, 
+                "\"weapon-name\"", "\"seller\""
+            )
 
         local scanWeaponName, scanSellerUUID
             = unpack(fields)

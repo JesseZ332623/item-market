@@ -14,4 +14,6 @@ public class UserInfo
 {
     private String userName;
     private double userFunds;
+    private String guildName;
+    private String guildRole;
 }

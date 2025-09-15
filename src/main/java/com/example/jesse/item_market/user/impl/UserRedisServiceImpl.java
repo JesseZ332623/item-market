@@ -1,16 +1,17 @@
 package com.example.jesse.item_market.user.impl;
 
+import com.example.jesse.item_market.errorhandle.ProjectRedisOperatorException;
 import com.example.jesse.item_market.user.UserRedisService;
 import com.example.jesse.item_market.user.Weapons;
 import com.example.jesse.item_market.user.dto.UserInfo;
 import com.example.jesse.item_market.utils.LimitRandomElement;
 import com.example.jesse.item_market.utils.LuaScriptReader;
 import com.example.jesse.item_market.utils.dto.LuaOperatorResult;
-import com.example.jesse.item_market.errorhandle.ProjectRedisOperatorException;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.*;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -19,14 +20,14 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
-import static com.example.jesse.item_market.utils.KeyConcat.*;
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
-import static com.example.jesse.item_market.utils.KeyConcat.getUserHashKey;
+import static com.example.jesse.item_market.utils.KeyConcat.*;
+import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPERATOR;
 import static com.example.jesse.item_market.utils.UUIDGenerator.generateAsSting;
 import static java.lang.String.format;
-import static com.example.jesse.item_market.utils.LuaScriptOperatorType.USER_OPERATOR;
 
 /** 用户 Redis 操作实现类。*/
 @Slf4j
@@ -135,26 +136,14 @@ public class UserRedisServiceImpl implements UserRedisService
                 ScanOptions.scanOptions()
                     .match("market:weapon-market:weapons:*")
                     .build())
+            .timeout(Duration.ofSeconds(5L))
             .flatMap((key) ->
                 this.redisTemplate.opsForHash()
                     .multiGet(key, List.of("\"weapon-name\"", "\"seller\""))
                     .filter((result) -> result.get(1).equals(uuid))
-                    .map((res) -> Weapons.valueOf((String) res.getFirst()))
-            );
-    }
-
-    @Override
-    public Mono<UserInfo>
-    getUserInfoByUUID(String uuid)
-    {
-        return
-        this.redisTemplate.opsForHash()
-            .multiGet(getUserKey(uuid), List.of("\"name\"", "\"funds\""))
-            .map((result) ->
-                new UserInfo()
-                    .setUserName((String) result.getFirst())
-                    .setUserFunds((double) result.get(1))
-            );
+                    .map((res) -> Weapons.valueOf((String) res.getFirst())))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null));
     }
 
     /** 获取某个用户上架至市场的所有武器的 ID。*/
@@ -168,13 +157,48 @@ public class UserRedisServiceImpl implements UserRedisService
                 ScanOptions.scanOptions()
                     .match("market:weapon-market:weapons:*")
                     .build())
+            .timeout(Duration.ofSeconds(5L))
             .flatMap((key) ->
                 this.redisTemplate.opsForHash()
                     .get(key, "\"seller\"")
                     .filter(sellerId -> sellerId.equals(uuid))
                     .map(ignore ->
-                        key.substring(key.lastIndexOf(":") + 1))
-            );
+                        key.substring(key.lastIndexOf(":") + 1)))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null));
+    }
+
+    /** 获取某个用户的数据。*/
+    @Override
+    public Mono<UserInfo>
+    getUserInfoByUUID(String uuid)
+    {
+        final String userKey = getUserKey(uuid);
+
+        return
+        this.redisTemplate
+            .hasKey(userKey)
+            .flatMap((exists) ->
+                (!exists)
+                    ? Mono.error(
+                        new NoSuchElementException(
+                            format("User: %s not found!", uuid)
+                        )
+                    )
+                    : this.redisTemplate.opsForHash()
+                          .multiGet(
+                              userKey,
+                              List.of("\"name\"", "\"funds\"", "\"guild\"", "\"guild-role\""))
+                        .map((result) ->
+                            new UserInfo()
+                                .setUserName((String) result.getFirst())
+                                .setUserFunds((double) result.get(1))
+                                .setGuildName((String) result.get(2))
+                                .setGuildRole((String) result.get(3)))
+            )
+            .timeout(Duration.ofSeconds(5L))
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null));
     }
 
     /**
@@ -201,9 +225,18 @@ public class UserRedisServiceImpl implements UserRedisService
     addNewUser(String userName)
     {
         return Mono.defer(() -> {
+            if (userName == null || userName.trim().isEmpty()) 
+            {
+                return 
+                Mono.error(
+                    new 
+                    IllegalArgumentException("User name never be null or empty!")
+                );
+            }
+
             final String uuid          = generateAsSting();
             final String userKey       = getUserKey(uuid);
-            final String userHashKey    = getUserHashKey();
+            final String userHashKey   = getUserHashKey();
             final String inventoryKey  = getInventoryKey(uuid);
             final float NEW_USER_FUNDS = 12500.00F;
             final String weaponsString
@@ -379,17 +412,41 @@ public class UserRedisServiceImpl implements UserRedisService
     public Mono<Void>
     addWeaponToInventory(String uuid, @NotNull Weapons weapon)
     {
-        return this.luaScriptReader
+        return 
+        this.luaScriptReader
             .fromFile(USER_OPERATOR, "addWeaponToInventory.lua")
             .flatMap((script) ->
-                this.redisScriptTemplate.execute(
-                        script, List.of(getUserKey(uuid), getInventoryKey(uuid)), weapon.getItemName())
+                this.redisScriptTemplate
+                    .execute(
+                        script, 
+                        List.of(getUserKey(uuid), getInventoryKey(uuid)), 
+                        weapon.getItemName())
                     .next()
                     .timeout(Duration.ofSeconds(5L))
-                    .onErrorResume((exception) ->
-                        redisGenericErrorHandel(exception, null))
-                    .then()
-            );
+                    .flatMap((result) ->
+                        switch (result.getResult())
+                        {
+                            case "USER_NOT_FOUND" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("uuid: %s not found!", uuid)
+                                    )
+                                );
+
+                            case "SUCCESS" -> Mono.empty();
+
+                            case null, default ->
+                                Mono.error(
+                                    new IllegalStateException(
+                                        "Unexpected result: " + result.getResult()
+                                    )
+                                );
+                        }
+                    )
+            )
+            .onErrorResume((exception) ->
+                redisGenericErrorHandel(exception, null))
+            .then();
     }
 
     /**
@@ -421,6 +478,16 @@ public class UserRedisServiceImpl implements UserRedisService
                     .flatMap((result) ->
                         switch (result.getResult())
                         {
+                            case "WEAPON_NOT_FOUND" ->
+                                Mono.error(
+                                    new NoSuchElementException(
+                                        format(
+                                            "Weapon %s not exist in userr %s's inventory!",
+                                            weapon, uuid
+                                        )
+                                    )
+                                );
+
                             case "SUCCESS" -> Mono.empty();
 
                             case null, default ->
@@ -475,7 +542,8 @@ public class UserRedisServiceImpl implements UserRedisService
                         .timeout(Duration.ofSeconds(5L))
                         .next()
                         .flatMap((result) ->
-                            switch (result.getResult()) {
+                            switch (result.getResult()) 
+                            {
                                 case "INVENTORY_REM_FAILED" ->
                                     Mono.error(
                                         new IllegalStateException(
@@ -574,43 +642,44 @@ public class UserRedisServiceImpl implements UserRedisService
         final String userHashKey  = getUserHashKey();
         final String inventoryKey = getInventoryKey(uuid);
 
-        return this.luaScriptReader
-                   .fromFile(USER_OPERATOR, "deleteUser.lua")
-                   .flatMap((script) ->
-                       this.redisScriptTemplate.execute(
-                           script,
-                           List.of(userKey, userHashKey, inventoryKey),
-                           USER_NAME_FIELD, USER_FUNDS_FIELD)
-                       .timeout(Duration.ofSeconds(5L))
-                       .next()
-                       .flatMap((result) ->
-                           switch (result.getResult())
-                           {
-                               case "USER_NOT_FOUND" ->
-                                   Mono.error(
-                                       new IllegalArgumentException(
-                                           format("UUID: %s not exits!", uuid)
-                                       )
-                               );
+        return 
+        this.luaScriptReader
+            .fromFile(USER_OPERATOR, "deleteUser.lua")
+            .flatMap((script) ->
+                this.redisScriptTemplate.execute(
+                    script,
+                    List.of(userKey, userHashKey, inventoryKey),
+                    USER_NAME_FIELD, USER_FUNDS_FIELD)
+                    .timeout(Duration.ofSeconds(5L))
+                    .next()
+                    .flatMap((result) ->
+                        switch (result.getResult())
+                        {
+                            case "USER_NOT_FOUND" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("UUID: %s not exits!", uuid)
+                                    )
+                                );
 
-                               case "INVALID_USER_KEY" ->
-                                   Mono.error(
-                                       new IllegalArgumentException(
-                                           format("Failed to extract UUID from %s.", userKey)
-                                   )
-                               );
+                            case "INVALID_USER_KEY" ->
+                                Mono.error(
+                                    new IllegalArgumentException(
+                                        format("Failed to extract UUID from %s.", userKey)
+                                    )
+                                );
 
-                               case "SUCCESS" -> Mono.empty();
+                            case "SUCCESS" -> Mono.empty();
 
-                               case null, default -> Mono.error(
-                                   new IllegalStateException(
-                                       "Unexpected result: " + result.getResult()
-                                   )
-                               );
-                       })
-                       .onErrorResume((exception) ->
-                           redisGenericErrorHandel(exception, null))
-                       .then()
-                   );
+                            case null, default -> Mono.error(
+                                new IllegalStateException(
+                                    "Unexpected result: " + result.getResult()
+                                )
+                            );
+                        })
+                    .onErrorResume((exception) ->
+                        redisGenericErrorHandel(exception, null))
+                    .then()
+            );
     }
 }

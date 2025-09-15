@@ -56,7 +56,7 @@ final public class GeoLiteCityReader
 
     /** 延迟调用 excuteLoad() 方法的时间。*/
     private static final Duration INIT_DELAY
-        = Duration.ofSeconds(5L);
+        = Duration.ofSeconds(8L);
 
     /** 字符串序列化 Redis 模板。*/
     @Autowired
@@ -209,7 +209,7 @@ final public class GeoLiteCityReader
                                 this.redisTemplate
                                     .opsForHash()
                                     .putAll(shardingKey, records)
-                                    .timeout(Duration.ofSeconds(20L))
+                                    .timeout(Duration.ofSeconds(30L))
                                     .onErrorResume((exception) ->
                                         redisGenericErrorHandel(exception, null));
                             })
@@ -430,10 +430,9 @@ final public class GeoLiteCityReader
     @PostConstruct
     public void excuteLoad()
     {
-        log.info("Starting async CSV data loading...");
-
         Mono.delay(INIT_DELAY)
             .then(Mono.defer(() -> {
+                log.info("Starting async CSV data loading...");
                 switch (this.csvReadMode)
                 {
                     case "filesystem" ->

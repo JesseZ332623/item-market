@@ -23,7 +23,7 @@ local timestamp = redis.call('TIME')[1]
 
 -- 无论如何，不能添加自己为最近联系人
 if
-    contactName == redis.call('HGET', userKey, "name")
+    contactName == redis.call('HGET', userKey, "\"name\"")
 then
     return '{"result": "SELF_ADDED"}'
 end
