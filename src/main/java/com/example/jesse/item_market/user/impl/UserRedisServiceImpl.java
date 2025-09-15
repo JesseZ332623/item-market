@@ -606,6 +606,9 @@ public class UserRedisServiceImpl implements UserRedisService
                         {
                             case "SUCCESS" -> Mono.empty();
 
+                            case "WEAPON_NOT_FOUND" ->
+                                Mono.error(new NoSuchElementException());
+
                             case null, default ->
                                 Mono.error(
                                     new IllegalStateException(
@@ -657,7 +660,7 @@ public class UserRedisServiceImpl implements UserRedisService
                         {
                             case "USER_NOT_FOUND" ->
                                 Mono.error(
-                                    new IllegalArgumentException(
+                                    new NoSuchElementException(
                                         format("UUID: %s not exits!", uuid)
                                     )
                                 );
