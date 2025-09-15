@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import reactor.core.publisher.Mono;
 
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.lang.String.format;
@@ -14,6 +15,38 @@ import static java.lang.String.format;
 @NoArgsConstructor(access  = AccessLevel.PRIVATE)
 final public class URLParamPrase
 {
+    /**
+     * 从 HTTP 请求的 URI 路径中获取指定的参数。
+     *
+     * <p>
+     *     比如 URL：<code>/api/user/{uuid}/info</code>
+     *     调用本方法 <code>prasePathVariable(request, "uuid")</code> 得到 uuid 的值
+     * </p>
+     *
+     * @param request  从前端传来的 HTTP 请求实例
+     * @param pathName 路径名
+     *
+     * @return 路径值
+     */
+    public static @NotNull Mono<String>
+    prasePathVariable(final ServerRequest request, String pathName)
+    {
+        return
+        Mono.fromCallable(
+            () -> request.pathVariable(pathName)
+        );
+    }
+
+    /** 从 HTTP 请求的 URI 路径中获取所有参数，返回一个 {@link Map} */
+    public static @NotNull Mono<Map<String, String>>
+    prasePathVariables(final ServerRequest request)
+    {
+        return
+        Mono.fromCallable(
+            () -> request.pathVariables()
+        );
+    }
+
     /**
      * <p>从 HTTP 请求的 URI 中查询指定的参数。</p>
      *
