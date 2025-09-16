@@ -474,6 +474,14 @@ final public class ResponseBuilder
         );
     }
 
+    /** OK 响应的预设构建（使用默认响应头，无 HATEOAS 元数据）。 */
+    public @NotNull Mono<ServerResponse>
+    OK(Object data, String customMessage)
+    {
+        return
+        this.OK(data, customMessage, null, null);
+    }
+
     /** CREATED 响应的预设构建。*/
     public @NotNull Mono<ServerResponse>
     CREATED(
