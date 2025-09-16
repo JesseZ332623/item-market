@@ -1,72 +1,88 @@
 package com.example.jesse.item_market.user.route;
 
-/** 用户服务路径配置类。 */
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+
+/** 用户服务路径配置类 - RESTful风格。 */
 public class UserServiceURIConfig
 {
-    /** 用户服务根 URI */
-    private final static String
-    USER_ROOT_URI = "/api/user";
+    /** API 根路径 */
+    private static final String API_ROOT = "/api";
 
-    /** (GET) 获取所有用户的 UUID */
-    public final static String
-    FIND_ALL_USER_UUID_URI = USER_ROOT_URI + "/find-all-user-uuid";
+    /** 用户资源 */
+    public static final String USERS = API_ROOT + "/users";
 
-    /** (GET) 获取某个用户的最近联系人列表 */
-    public final static String
-    FIND_CONTACTS_BY_UUID_URI = USER_ROOT_URI + "/find-contacts";
+    /** 特定用户 */
+    @Contract(pure = true)
+    public static @NotNull String user(String userId) {
+        return USERS + "/{userId}";
+    }
 
-    /** (GET) 获取某个用户包裹中的所有武器 */
-    public final static String
-    FIND_ALL_WEAPONS_FROM_INVENTORY_URI 
-        = USER_ROOT_URI + "/find-weapons-from-inventory";
+    /** 用户 UUID 列表 */
+    public static final String USER_UUIDS = USERS + "/uuids";
 
-    /** (GET) 获取某个用户上架至市场的所有武器 */
-    public final static String
-    FIND_ALL_WEAPONS_FROM_MARKET_URI 
-        = USER_ROOT_URI + "/find-weapons-from-market";
+    /** 用户联系人 */
+    @Contract(pure = true)
+    public static @NotNull String
+    userContacts(String userId) {
+        return user(userId) + "/contacts";
+    }
 
-    /** (GET) 获取某个用户上架至市场的所有武器的 ID */
-    public final static String
-    FIND_ALL_WEAPONIDS_FROM_MARKET_URI 
-        = USER_ROOT_URI + "/find-weaponIds-from-market";
-    
-    /** (GET) 获取某个用户的数据。*/
-    public final static String
-    FIND_USER_INFO_URI = USER_ROOT_URI + "/find-user-info";
+    /** 特定联系人 */
+    @Contract(pure = true)
+    public static @NotNull String
+    userContact(String userId, String contactName) {
+        return userContacts(userId) + "/{contactName}";
+    }
 
-    /** (POST) 创建一个新用户，并为它随机挑选几件武器放入包裹 */
-    public final static String
-    CREATE_NEW_USER_URI = USER_ROOT_URI + "/create-user";
+    /** 用户库存 */
+    @Contract(pure = true)
+    public static @NotNull String
+    userInventory(String userId) {
+        return user(userId) + "/inventory";
+    }
 
-    /** (POST) 用户记录另一个用户为最近联系人 */
-    public final static String
-    ADD_NEW_CONTACT_URI = USER_ROOT_URI + "/add-new-contact";
+    /** 用户库存武器 */
+    @Contract(pure = true)
+    public static @NotNull String
+    userInventoryWeapons(String userId) {
+        return userInventory(userId) + "/weapons";
+    }
 
-    /** (DELETE) 用户删除自己最近联系人列表的某个用户 */
-    public final static String
-    REMOVE_CONTACT_URI = USER_ROOT_URI + "/remove-contact";
+    /** 特定库存武器 */
+    @Contract(pure = true)
+    public static @NotNull String
+    userInventoryWeapon(String userId, String weaponName) {
+        return userInventoryWeapons(userId) + "/{weaponName}";
+    }
 
-    /** (POST) 为用户的包裹添加一件武器 */
-    public final static String
-    ADD_WEAPON_TO_INVENTORY_URI 
-        = USER_ROOT_URI + "/add-weapon-to-inventory";
+    /** 用户市场列表 */
+    @Contract(pure = true)
+    public static @NotNull String
+    userMarketListings(String userId) {
+        return user(userId) + "/market-listings";
+    }
 
-    /** (DELETE) 用户销毁包裹中的某个武器 */
-    public final static String
-    DESTORY_WEAPON_FROM_INVENTORY
-        = USER_ROOT_URI + "/destory-weapon-from-inventory";
+    /** 特定市场列表 */
+    @Contract(pure = true)
+    public static @NotNull String
+    userMarketListing(String userId, String weaponName) {
+        return userMarketListings(userId) + "/{weaponName}";
+    }
 
-    /** (POST) 用户将武器上架至市场 */
-    public final static String
-    ADD_WEAPON_TO_MARKET_URI 
-        = USER_ROOT_URI + "/add-weapon-to-market";
-
-    /** (DELETE) 用户从市场上下架某个武器 */
-    public final static String
-    REMOVE_WEAPON_FROM_MARKET
-        = USER_ROOT_URI + "/remove-weapon-from-market";
-
-    /** (DELETE) 删除用户 */
-    public final static String
-    DELETE_USER = USER_ROOT_URI + "/delete-user";
+    // 路由常量（用于路由配置）
+    public static final String GET_ALL_USER_UUIDS           = USER_UUIDS;
+    public static final String GET_USER_INFO                = user("{userId}");
+    public static final String GET_USER_CONTACTS            = userContacts("{userId}");
+    public static final String GET_USER_INVENTORY           = userInventory("{userId}");
+    public static final String GET_USER_MARKET_LISTINGS     = userMarketListings("{userId}");
+    public static final String GET_USER_MARKET_LISTING_IDS  = userMarketListings("{userId}") + "/ids";
+    public static final String CREATE_USER                  = USERS;
+    public static final String ADD_CONTACT                  = userContacts("{userId}");
+    public static final String REMOVE_CONTACT               = userContact("{userId}", "{contactName}");
+    public static final String ADD_WEAPON_TO_INVENTORY      = userInventoryWeapons("{userId}");
+    public static final String REMOVE_WEAPON_FROM_INVENTORY = userInventoryWeapon("{userId}", "{weaponName}");
+    public static final String ADD_WEAPON_TO_MARKET         = userMarketListings("{userId}");
+    public static final String REMOVE_WEAPON_FROM_MARKET    = userMarketListing("{userId}", "{weaponName}");
+    public static final String DELETE_USER                  = user("{userId}");
 }
