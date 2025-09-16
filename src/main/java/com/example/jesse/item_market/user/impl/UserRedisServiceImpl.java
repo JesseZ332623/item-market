@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
@@ -328,7 +329,7 @@ public class UserRedisServiceImpl implements UserRedisService
                             case "SELF_ADDED" ->
                                 Mono.error(
                                     new IllegalArgumentException(
-                                        "Self added is forbidden!"
+                                        "Self add is forbidden!"
                                     )
                                 );
 
@@ -379,7 +380,7 @@ public class UserRedisServiceImpl implements UserRedisService
                         {
                             case "CONCAT_NAME_NOT_FOUND" ->
                                 Mono.error(
-                                    new IllegalArgumentException(
+                                    new NoSuchElementException(
                                         format("Concat name: %s not found!", contactName)
                                     )
                                 );
@@ -482,7 +483,7 @@ public class UserRedisServiceImpl implements UserRedisService
                                 Mono.error(
                                     new NoSuchElementException(
                                         format(
-                                            "Weapon %s not exist in userr %s's inventory!",
+                                            "Weapon %s not exist in user %s's inventory!",
                                             weapon, uuid
                                         )
                                     )
@@ -546,7 +547,7 @@ public class UserRedisServiceImpl implements UserRedisService
                             {
                                 case "INVENTORY_REM_FAILED" ->
                                     Mono.error(
-                                        new IllegalStateException(
+                                        new NoSuchElementException(
                                             format(
                                                 "Weapon: %s not exist in User: %s 's inventory.",
                                                 weapon.getItemName(), uuid
@@ -641,9 +642,11 @@ public class UserRedisServiceImpl implements UserRedisService
     @Override
     public Mono<Void> deleteUser(String uuid)
     {
-        final String userKey      = getUserKey(uuid);
-        final String userHashKey  = getUserHashKey();
-        final String inventoryKey = getInventoryKey(uuid);
+        final String userKey       = getUserKey(uuid);
+        final String userHashKey   = getUserHashKey();
+        final String inventoryKey  = getInventoryKey(uuid);
+        final String contactsKey   = getContactKey(uuid);
+        final String contactLogKey = getContactLogKey();
 
         return 
         this.luaScriptReader
@@ -651,7 +654,7 @@ public class UserRedisServiceImpl implements UserRedisService
             .flatMap((script) ->
                 this.redisScriptTemplate.execute(
                     script,
-                    List.of(userKey, userHashKey, inventoryKey),
+                    List.of(userKey, userHashKey, inventoryKey, contactsKey, contactLogKey),
                     USER_NAME_FIELD, USER_FUNDS_FIELD)
                     .timeout(Duration.ofSeconds(5L))
                     .next()

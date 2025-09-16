@@ -13,8 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.NoSuchElementException;
 
-import static com.example.jesse.item_market.response.URLParamPrase.praseNumberRequestParam;
-import static com.example.jesse.item_market.response.URLParamPrase.praseRequestParam;
+import static com.example.jesse.item_market.response.URLParamPrase.*;
 
 /** 用户服务实现。*/
 @Slf4j
@@ -67,7 +66,7 @@ public class UserServiceImpl implements UserService
     findContactListByUUID(ServerRequest request)
     {
         return
-        praseRequestParam(request, "uuid")
+        prasePathVariable(request, "userId")
             .flatMap((uuid) ->
                 this.userRedisService
                     .getContactListByUUID(uuid)
@@ -111,7 +110,7 @@ public class UserServiceImpl implements UserService
     findAllWeaponsFromInventoryByUUID(ServerRequest request)
     {
         return
-        praseRequestParam(request, "uuid")
+        prasePathVariable(request, "userId")
             .flatMap((uuid) ->
                 this.userRedisService
                     .getAllWeaponsFromInventoryByUUID(uuid)
@@ -158,7 +157,7 @@ public class UserServiceImpl implements UserService
     findAllWeaponsFromMarketByUUID(ServerRequest request)
     {
         return
-        praseRequestParam(request, "uuid")
+        prasePathVariable(request, "userId")
             .flatMap((uuid) ->
                 this.userRedisService
                     .getAllWeaponsFromMarketByUUID(uuid)
@@ -205,7 +204,7 @@ public class UserServiceImpl implements UserService
     findAllWeaponIdsFromMarketByUUID(ServerRequest request)
     {
         return
-        praseRequestParam(request, "uuid")
+        prasePathVariable(request, "userId")
             .flatMap((uuid) ->
                 this.userRedisService
                     .getAllWeaponIdsFromMarketByUUID(uuid)
@@ -252,7 +251,7 @@ public class UserServiceImpl implements UserService
     findUserInfoByUUID(ServerRequest request)
     {
         return
-        praseRequestParam(request, "uuid")
+        prasePathVariable(request, "userId")
             .flatMap((uuid) ->
                 this.userRedisService
                     .getUserInfoByUUID(uuid)
@@ -327,8 +326,8 @@ public class UserServiceImpl implements UserService
     {
         return
         Mono.zip(
-            praseRequestParam(request, "uuid"), 
-            praseRequestParam(request, "contact-name"))
+            prasePathVariable(request, "userId"),
+            praseRequestParam(request, "contactName"))
         .flatMap((params) -> {
             final String uuid        = params.getT1();
             final String contactName = params.getT2();
@@ -340,7 +339,7 @@ public class UserServiceImpl implements UserService
                     this.responseBuilder
                         .OK(
                             null, 
-                            String.format("OK! Add %s to your contact list!", contactName), 
+                            String.format("OK! User %s become your latest contact!", contactName),
                             null, null
                         ))
                 .onErrorResume(
@@ -373,8 +372,8 @@ public class UserServiceImpl implements UserService
     {
         return
         Mono.zip(
-            praseRequestParam(request, "uuid"), 
-            praseRequestParam(request, "contact-name"))
+            prasePathVariable(request, "userId"),
+            prasePathVariable(request, "contactName"))
         .flatMap((params) -> {
             final String uuid        = params.getT1();
             final String contactName = params.getT2();
@@ -391,10 +390,10 @@ public class UserServiceImpl implements UserService
                         ), null, null
                     ))
                 .onErrorResume(
-                    IllegalArgumentException.class, 
+                    NoSuchElementException.class,
                         (exception) -> 
                             this.responseBuilder
-                                .BAD_REQUEST(exception.getMessage(), exception))
+                                .NOT_FOUND(exception.getMessage(), exception))
                 .onErrorResume((exception) -> 
                     this.responseBuilder
                         .INTERNAL_SERVER_ERROR(
@@ -415,12 +414,12 @@ public class UserServiceImpl implements UserService
 
     @Override
     public Mono<ServerResponse> 
-    addWeaponToInventory(ServerRequest request) 
+    addWeaponToInventory(ServerRequest request)
     {
         return
         Mono.zip(
-            praseRequestParam(request, "uuid"),
-            praseRequestParam(request, "weapon"))
+            prasePathVariable(request, "userId"),
+            praseRequestParam(request, "weaponName"))
         .flatMap((params) -> {
             final String  uuid   = params.getT1();
             final Weapons weapon = Weapons.valueOf(params.getT2());
@@ -467,10 +466,10 @@ public class UserServiceImpl implements UserService
     destroyWeaponFromInventory(ServerRequest request)
     {
        return
-        Mono.zip(
-            praseRequestParam(request, "uuid"),
-            praseRequestParam(request, "weapon"))
-        .flatMap((params) -> {
+       Mono.zip(
+            prasePathVariable(request, "userId"),
+            prasePathVariable(request, "weaponName"))
+       .flatMap((params) -> {
             final String  uuid   = params.getT1();
             final Weapons weapon = Weapons.valueOf(params.getT2());
 
@@ -500,24 +499,23 @@ public class UserServiceImpl implements UserService
                         exception
                     )
                 );
-        })
-        .onErrorResume(
+       })
+       .onErrorResume(
             IllegalArgumentException.class, 
             (exception) ->
                 this.responseBuilder
                     .BAD_REQUEST(exception.getMessage(), exception)
-        );
+       );
     }
 
     @Override
     public Mono<ServerResponse> 
-    addWeaponToMarket(ServerRequest request) 
+    addWeaponToMarket(ServerRequest request)
     {
         return
         Mono.zip(
-            praseRequestParam(request, "uuid"),
-            praseRequestParam(request, "weapon")
-                .map(Weapons::valueOf),
+            prasePathVariable(request, "userId"),
+            praseRequestParam(request, "weaponName").map(Weapons::valueOf),
             praseNumberRequestParam(request, "price", Double::parseDouble))
         .flatMap((params) -> {
             final String  uuid   = params.getT1();
@@ -530,7 +528,7 @@ public class UserServiceImpl implements UserService
                 .flatMap((weaponId) ->
                     this.responseBuilder
                         .OK(
-                            null, 
+                            null,
                             String.format(
                                 "Add weapon: %s to market success! " +
                                 "Market Weapon ID: [%s]",
@@ -539,10 +537,10 @@ public class UserServiceImpl implements UserService
                             null, null
                         ))
                 .onErrorResume(
-                    IllegalStateException.class,
+                    NoSuchElementException.class,
                     (exception) ->
                         this.responseBuilder
-                            .BAD_REQUEST(exception.getMessage(), exception)
+                            .NOT_FOUND(exception.getMessage(), exception)
                 )
                 .onErrorResume(
                     (exception) -> 
@@ -551,7 +549,7 @@ public class UserServiceImpl implements UserService
                                 String.format(
                                     "Add weapon (which is: %s) for user: %s failed!",
                                     weapon, uuid
-                                ), 
+                                ),
                         exception
                     )
                 );
@@ -570,8 +568,8 @@ public class UserServiceImpl implements UserService
     {
         return
         Mono.zip(
-            praseRequestParam(request, "uuid"),
-            praseRequestParam(request, "weapon"))
+            prasePathVariable(request, "userId"),
+            prasePathVariable(request, "weaponName"))
         .flatMap((params) -> {
             final String  uuid   = params.getT1();
             final Weapons weapon = Weapons.valueOf(params.getT2());
@@ -621,14 +619,15 @@ public class UserServiceImpl implements UserService
     deleteUser(ServerRequest request) 
     {
         return
-        praseRequestParam(request, "uuid")
+        prasePathVariable(request, "userId")
             .flatMap((uuid) ->
                 this.userRedisService
                     .deleteUser(uuid)
                     .then(
                         this.responseBuilder
-                            .OK(null, 
-                            String.format("Delete user: %s complete! Bye!", uuid),
+                            .OK(
+                                null,
+                                String.format("Delete user: %s complete! Bye!", uuid),
                             null, null
                         ))
                     .onErrorResume(

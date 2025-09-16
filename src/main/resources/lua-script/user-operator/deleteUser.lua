@@ -9,12 +9,18 @@
         userNameField    用户名哈希字段名
         userFundsField   用户资金哈希字段名
 ]]
-local userKey      = KEYS[1]
+local userKey       = KEYS[1]
 local userHashKey   = KEYS[2]
-local inventoryKey = KEYS[3]
+local inventoryKey  = KEYS[3]
+local contactsKey   = KEYS[4]
+local contactLogKey = KEYS[5]
 
 local userNameField  = ARGV[1]
 local userFundsField = ARGV[2]
+
+-- 获取用户的 uuid
+local targetUUID = string.match(userKey, "%:(.+)$")
+targetUUID = "\"" ..targetUUID.. "\"";
 
 local timestamp = redis.call('TIME')[1]
 
@@ -37,9 +43,17 @@ redis.call(
     'timestamp', timestamp
 )
 
--- 获取用户的 uuid
-local targetUUID = string.match(userKey, "%:(.+)$")
-targetUUID = "\"" ..targetUUID.. "\"";
+-- 移除用户的所有常用联系人
+redis.call('DEL', contactsKey)
+
+redis.call(
+    'XADD',
+    contactLogKey, '*',
+    'event', 'REMOVE_ALL_CONTACTS',
+    'uuid', targetUUID,
+    'contactName', 'all',
+    'timestamp', timestamp
+)
 
 -- 对于每一个 hash-key，查询买家 uuid 和 武器名，
 -- 若买家 uuid 与传入的参数匹配，删除对应的整个哈希并添加审计信息
@@ -58,7 +72,7 @@ repeat
     local weaponHashKeys = result[2]
 
     for i, weaponKey in ipairs(weaponHashKeys) do
-        local fields = redis.call('HMGET', weaponKey, 'weapon-name', 'seller')
+        local fields = redis.call('HMGET', weaponKey, '\"weapon-name\"', '\"seller\"')
 
         local weaponName, sellerUUID = unpack(fields)
 
@@ -103,7 +117,7 @@ local guildName = redis.call('HGET', userKey, "\"guild\"")
 local guildRole = redis.call('HGET', userKey, "\"guild-role\"")
 
 if
-    guildName ~= '---' and guildRole ~= "\"Leader\""
+    guildName ~= '\"---\"' and guildRole ~= "\"Leader\""
 then
     local guildKey    = 'guild:' ..guildName
     local guildLogKey = 'guild:log'
