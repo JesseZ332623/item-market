@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static com.example.jesse.item_market.errorhandle.RedisErrorHandle.redisGenericErrorHandel;
