@@ -1,18 +1,23 @@
 package com.example.jesse.item_market.response;
 
+import com.example.jesse.item_market.response.pojo.Link;
+import com.example.jesse.item_market.response.pojo.Pagination;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerResponse;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
@@ -25,7 +30,7 @@ import java.util.function.Consumer;
 @Component
 @Accessors(chain = true)
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-final public class ResponseBuilder
+public class ResponseBuilder
 {
     /**
      * 响应体静态模板类。
@@ -34,7 +39,7 @@ final public class ResponseBuilder
      */
     @Data
     @NoArgsConstructor
-    public static class APIResponse<T>
+    private static class APIResponse<T>
     {
         /** 响应时间戳（默认是构造本响应体那一刻的时间）*/
         private final long timestamp = Instant.now().toEpochMilli();
@@ -118,6 +123,7 @@ final public class ResponseBuilder
          *
          * @return 添加完分页元数据的响应体
          */
+        @Contract("_, _, _ -> this")
         public APIResponse<T>
         withPagination(int page, int size, long totalItems)
         {
@@ -274,24 +280,34 @@ final public class ResponseBuilder
      * @param status        响应码
      * @param data          响应体
      * @param customMessage 响应消息
+     * @param pagination    分页信息元数据
      * @param hateOASLink   HATEOAS 元数据集合
      *
      * @return 构造好地响应体
      */
-    private <T> APIResponse<T> produceBody(
+    private <T> @NotNull APIResponse<T>
+    produceBody(
         HttpStatus status, T data,
         String customMessage,
-        Set<Link> hateOASLink
+        Pagination pagination, Set<Link> hateOASLink
     )
     {
         APIResponse<T> response = new APIResponse<>(status);
         response.setData(data);
 
-        if (customMessage != null) {
+        if (Objects.nonNull(customMessage)) {
             response.setMessage(customMessage);
         }
 
-        if (hateOASLink != null)
+        if (Objects.nonNull(pagination))
+        {
+            response.withPagination(
+                pagination.getPageNo(),
+                pagination.getPageSize(), pagination.getTotalItems()
+            );
+        }
+
+        if (Objects.nonNull(hateOASLink))
         {
             for (Link link : hateOASLink)
             {
@@ -323,45 +339,51 @@ final public class ResponseBuilder
      * @param status            响应码
      * @param body              响应体
      * @param headersCustomizer 响应头消费者
+     * @param pagination        分页信息元数据
      * @param hateOASLink       HATEOAS 元数据集合
      *
      * @return 构造好地响应体 Mono
      */
-    public @NotNull Mono<ServerResponse> build(
+    public @NotNull Mono<ServerResponse>
+    build(
         HttpStatus status, Object body, String customMessage,
         Consumer<HttpHeaders> headersCustomizer,
-        Set<Link> hateOASLink
+        Pagination pagination, Set<Link> hateOASLink
     )
     {
-        return ServerResponse.status(status)
+        return
+        ServerResponse.status(status)
             .headers(headersCustomizer)
             .bodyValue(
                 this.produceBody(
-                    status, body,
-                    customMessage, hateOASLink
+                    status, body, customMessage,
+                    pagination, hateOASLink
                 )
             );
     }
 
     /**
-     * 基础响应的构建其二。
+     * 适配文件下载或流式数据的响应体构建方法。
      *
-     * @param <T> 响应数据类型
-     *
+     * @param status            响应码
+     * @param body              响应体（文件流或其他数据流）
+     * @param mediaType         文件类型
      * @param headersCustomizer 响应头消费者
-     * @param response 响应体数据（外部构建）
      *
      * @return 构造好地响应体 Mono
      */
-    public @NotNull <T> Mono<ServerResponse>
-    build(
-        Consumer<HttpHeaders>   headersCustomizer,
-        @NotNull APIResponse<T> response
+    public @NotNull Mono<ServerResponse>
+    buildStream(
+        HttpStatus status,
+        Consumer<HttpHeaders> headersCustomizer,
+        Flux<DataBuffer> body, MediaType mediaType
     )
     {
-        return ServerResponse.status(response.getStatus())
+        return
+        ServerResponse.status(status)
             .headers(headersCustomizer)
-            .bodyValue(response);
+            .contentType(mediaType)
+            .body(body, DataBuffer.class);
     }
 
     /**
@@ -409,7 +431,7 @@ final public class ResponseBuilder
             .bodyValue(
                 this.produceBody(
                     HttpStatus.CREATED, body,
-                    customMessage, hateOASLink
+                    customMessage, null, hateOASLink
                 )
             );
     }
@@ -442,15 +464,25 @@ final public class ResponseBuilder
         Consumer<HttpHeaders> headersCustomizer
     )
     {
-        log.error("API ERROR: {}.", message, exception);
+        if (Objects.isNull(exception)) {
+            log.error("API ERROR: {}.", message);
+        }
+        else {
+            log.error("API ERROR: {}.", message, exception);
+        }
 
         APIResponse<?> response
             = this.produceBody(
-            status, null, message, null
+            status, null, message,
+            null, null
         );
-        response.getMetadata().put("errorCode", "ERR_" + status.value());
 
-        return ServerResponse.status(status)
+        response.getMetadata().put(
+            "errorCode", "ERR_" + status.value()
+        );
+
+        return
+        ServerResponse.status(status)
             .headers(headersCustomizer)
             .bodyValue(response);
     }
@@ -460,26 +492,47 @@ final public class ResponseBuilder
     OK(
         Object data, String customMessage,
         Consumer<HttpHeaders> headerCustomizer,
-        Set<Link> hateOASLink
+        Pagination pagination, Set<Link> hateOASLink
     )
     {
-        return this.build(
+        return
+        this.build(
             HttpStatus.OK, data, customMessage,
             headers -> {
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 if (headerCustomizer != null) {
                     headerCustomizer.accept(headers);
                 }
-            }, hateOASLink
+            }, pagination, hateOASLink
         );
     }
 
-    /** OK 响应的预设构建（使用默认响应头，无 HATEOAS 元数据）。 */
+    /** OK 响应的预设构建（适用于文件下载或流式数据）。*/
+    public @NotNull Mono<ServerResponse>
+    OK(
+        Consumer<HttpHeaders> headersCustomizer,
+        Flux<DataBuffer> body, MediaType mediaType
+    )
+    {
+        return
+        this.buildStream(
+            HttpStatus.OK, headersCustomizer,
+            body, mediaType
+        );
+    }
+
+    /**
+     * OK 响应的预设构建
+     *（使用默认响应头，无 HATEOAS 元数据，无分页信息元数据）。
+     */
     public @NotNull Mono<ServerResponse>
     OK(Object data, String customMessage)
     {
         return
-        this.OK(data, customMessage, null, null);
+        this.OK(
+            data, customMessage,
+            null, null, null
+        );
     }
 
     /** CREATED 响应的预设构建。*/
@@ -538,6 +591,26 @@ final public class ResponseBuilder
             headers ->
                 headers.setContentType(MediaType.APPLICATION_JSON)
         );
+    }
+
+    /** NO_CONTENT 响应的预设构建。*/
+    public @NotNull Mono<ServerResponse>
+    NO_CONTENT(Consumer<HttpHeaders> headerCustomizer)
+    {
+        return
+        ServerResponse.noContent()
+                      .headers(headerCustomizer)
+                      .build();
+    }
+
+    /** 重定向响应的预设构建（适用于 301、302 等重定向响应）。*/
+    public @NotNull Mono<ServerResponse>
+    REDIRECT(URI location, HttpStatus status)
+    {
+        return
+        ServerResponse.status(status)
+                      .location(location)
+                      .build();
     }
 
     /* 后续的可以继续补充响应的预设构建。*/
