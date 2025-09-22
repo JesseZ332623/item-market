@@ -13,7 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.concurrent.CompletableFuture;
 
-import static com.example.jesse.item_market.response.URLParamPrase.praseRequestParam;
+import static com.example.jesse.item_market.response.utils.URLParamPrase.praseRequestParam;
 
 /** Kafka 生产者测试。*/
 @Slf4j
@@ -65,7 +65,7 @@ public class KafkaProducerService
                     })
             ).flatMap((successMsg) ->
                 this.responseBuilder
-                    .OK(null, successMsg, null, null)
+                    .OK(null, successMsg)
             );
         })
         .onErrorResume(IllegalArgumentException.class,
@@ -108,10 +108,7 @@ public class KafkaProducerService
                           })
             ).flatMap((successMsg) ->
                 this.responseBuilder
-                    .OK(
-                        null, successMsg,
-                        null, null
-                    )
+                    .OK(null, successMsg)
             );
         })
         .onErrorResume(IllegalArgumentException.class,
