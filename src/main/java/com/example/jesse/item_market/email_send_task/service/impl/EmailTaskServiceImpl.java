@@ -20,8 +20,8 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
-import static com.example.jesse.item_market.response.URLParamPrase.praseNumberRequestParam;
-import static com.example.jesse.item_market.response.URLParamPrase.praseRequestParam;
+import static com.example.jesse.item_market.response.utils.URLParamPrase.praseNumberRequestParam;
+import static com.example.jesse.item_market.response.utils.URLParamPrase.praseRequestParam;
 import static java.lang.String.format;
 
 /** 邮件任务服务实现。*/
@@ -56,10 +56,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
 
         return
         this.responseBuilder
-            .OK(
-                null, "Email task started!",
-                null, null
-            );
+            .OK(null, "Email task started!");
     }
 
     /** 停止 项目邮件任务。*/
@@ -74,9 +71,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
         })
         .then(
             this.responseBuilder
-                .OK(
-                    null, "Email task stop!",
-                    null, null))
+                .OK(null, "Email task stop!"))
         .onErrorResume((excption) ->
             this.responseBuilder
                 .INTERNAL_SERVER_ERROR(
@@ -98,10 +93,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
                 .stopPollDelayZset())
             .then(
                 this.responseBuilder
-                    .OK(
-                        null, "Stop poll delay zset complete!",
-                        null, null
-                    ))
+                    .OK(null, "Stop poll delay zset complete!"))
             .onErrorResume((excption) ->
                 this.responseBuilder
                     .INTERNAL_SERVER_ERROR(
@@ -125,8 +117,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
             .then(
                 this.responseBuilder
                     .OK(
-                        null, "Stop excute email sender complete!",
-                        null, null
+                        null, "Stop excute email sender complete!"
                     ))
             .onErrorResume((excption) ->
                 this.responseBuilder
@@ -169,8 +160,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
             this.responseBuilder
                 .OK(
                     null,
-                    format("Add verify code mail task complete! Task ID: %s", taskId),
-                    null, null
+                    format("Add verify code mail task complete! Task ID: %s", taskId)
                 )
         )
         .onErrorResume((exception) ->
@@ -215,8 +205,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
             this.responseBuilder
                 .OK(
                     null,
-                    format("Add text mail task complete! Task ID: %s", taskId),
-                    null, null
+                    format("Add text mail task complete! Task ID: %s", taskId)
                 )
         )
         .onErrorResume((exception) ->
@@ -264,8 +253,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
             this.responseBuilder
                 .OK(
                     null,
-                    format("Add text mail task complete! Task ID: %s", taskId),
-                    null, null
+                    format("Add text mail task complete! Task ID: %s", taskId)
                 )
         )
         .onErrorResume((exception) ->
@@ -304,8 +292,7 @@ public class EmailTaskServiceImpl implements EmailTaskService
             this.responseBuilder
                 .OK(
                     null,
-                    format("Create email task complete! Task ID: %s", taskId),
-                    null, null
+                    format("Create email task complete! Task ID: %s", taskId)
                 ))
         .onErrorResume((exception) ->
             this.responseBuilder
