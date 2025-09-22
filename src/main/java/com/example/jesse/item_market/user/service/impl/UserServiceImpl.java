@@ -13,7 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.NoSuchElementException;
 
-import static com.example.jesse.item_market.response.URLParamPrase.*;
+import static com.example.jesse.item_market.response.utils.URLParamPrase.*;
 
 /** 用户服务实现。*/
 @Slf4j
@@ -43,10 +43,7 @@ public class UserServiceImpl implements UserService
 
                 return
                 this.responseBuilder
-                    .OK(
-                        uuids, String.format("OK! Find %d uuids.", uuids.size()),
-                        null, null
-                    );
+                    .OK(uuids, String.format("OK! Find %d uuids.", uuids.size()));
             })
             .onErrorResume(
                 IllegalArgumentException.class,
@@ -83,10 +80,7 @@ public class UserServiceImpl implements UserService
                         }
 
                         return
-                        this.responseBuilder.OK(
-                            contacts, String.format("Find %d contacts.", contacts.size()),
-                            null, null
-                        );
+                        this.responseBuilder.OK(contacts, String.format("Find %d contacts.", contacts.size()));
                     })
                     .onErrorResume((exception) ->
                         this.responseBuilder
@@ -130,8 +124,7 @@ public class UserServiceImpl implements UserService
                         this.responseBuilder
                             .OK(
                                 weapons,
-                                String.format("Find %s weapons in inventory.", weapons.size()),
-                                null, null
+                                String.format("Find %s weapons in inventory.", weapons.size())
                             );
                     })
                     .onErrorResume((exception) ->
@@ -175,11 +168,7 @@ public class UserServiceImpl implements UserService
 
                         return
                         this.responseBuilder
-                            .OK(
-                                weapons,
-                                String.format("Find %s weapons in market.", weapons.size()),
-                                null, null
-                            );
+                            .OK(weapons, String.format("Find %s weapons in market.", weapons.size()));
                     })
                     .onErrorResume((exception) ->
                         this.responseBuilder
@@ -215,18 +204,15 @@ public class UserServiceImpl implements UserService
                             return
                             this.responseBuilder
                                 .NOT_FOUND(
-                                    String.format("User: %s don't selling any weapons in market.", uuid),
-                                    null
+                                    String.format(
+                                        "User: %s don't selling any weapons in market.", uuid
+                                    ), null
                                 );
                         }
 
                         return
                         this.responseBuilder
-                            .OK(
-                                weaponIds,
-                                String.format("Find %s weapons ID in market.", weaponIds.size()),
-                                null, null
-                            );
+                            .OK(weaponIds, String.format("Find %s weapons ID in market.", weaponIds.size()));
                     })
                     .onErrorResume((exception) ->
                         this.responseBuilder
@@ -258,8 +244,7 @@ public class UserServiceImpl implements UserService
                     .flatMap((userInfo) ->
                         this.responseBuilder.OK(
                                 userInfo,
-                                String.format("Find info with user %s", uuid),
-                                null, null
+                                String.format("Find info with user %s", uuid)
                             ))
                     .onErrorResume(
                         NoSuchElementException.class,
@@ -299,7 +284,7 @@ public class UserServiceImpl implements UserService
                                 String.format(
                                     "Welcome new user: %s, your uuid: %s",
                                     userName, uuid
-                                ), null, null
+                                )
                             ))
                     .onErrorResume(
                         IllegalArgumentException.class,
@@ -339,8 +324,10 @@ public class UserServiceImpl implements UserService
                     this.responseBuilder
                         .OK(
                             null, 
-                            String.format("OK! User %s become your latest contact!", contactName),
-                            null, null
+                            String.format(
+                                "OK! User %s become your latest contact!",
+                                contactName
+                            )
                         ))
                 .onErrorResume(
                     IllegalArgumentException.class, 
@@ -387,7 +374,7 @@ public class UserServiceImpl implements UserService
                         String.format(
                             "Remove %s to user: %s's contact list!", 
                             contactName, uuid
-                        ), null, null
+                        )
                     ))
                 .onErrorResume(
                     NoSuchElementException.class,
@@ -433,7 +420,7 @@ public class UserServiceImpl implements UserService
                         String.format(
                             "Add new weapon: <%s> to user: %s's inventory!",
                             weapon, uuid
-                        ), null, null
+                        )
                     ))
                 .onErrorResume(
                     IllegalArgumentException.class,
@@ -479,9 +466,9 @@ public class UserServiceImpl implements UserService
                 .then(
                     this.responseBuilder.OK(
                         null, 
-                        String.format("Already destory weapon: <%s> to your inventory!", weapon), 
-                        null, null
-                    ))
+                        String.format("Already destory weapon: <%s> to your inventory!", weapon)
+                    )
+                )
                 .onErrorResume(
                     NoSuchElementException.class, 
                     (exception) ->
@@ -533,9 +520,9 @@ public class UserServiceImpl implements UserService
                                 "Add weapon: %s to market success! " +
                                 "Market Weapon ID: [%s]",
                                 weapon, weaponId
-                            ), 
-                            null, null
-                        ))
+                            )
+                        )
+                )
                 .onErrorResume(
                     NoSuchElementException.class,
                     (exception) ->
@@ -584,8 +571,9 @@ public class UserServiceImpl implements UserService
                             String.format(
                                 "Remove weapon %s from market, back to user: %s.",
                                 weapon, uuid
-                            ), null, null
-                        ))
+                            )
+                        )
+                )
                 .onErrorResume(
                     NoSuchElementException.class,
                     (exception) ->
@@ -627,9 +615,9 @@ public class UserServiceImpl implements UserService
                         this.responseBuilder
                             .OK(
                                 null,
-                                String.format("Delete user: %s complete! Bye!", uuid),
-                            null, null
-                        ))
+                                String.format("Delete user: %s complete! Bye!", uuid)
+                        )
+                    )
                     .onErrorResume(
                         NoSuchElementException.class,
                         (exception) ->
