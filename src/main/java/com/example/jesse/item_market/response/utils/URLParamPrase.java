@@ -1,4 +1,4 @@
-package com.example.jesse.item_market.response;
+package com.example.jesse.item_market.response.utils;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
